@@ -36,6 +36,9 @@ const ICO = {
   baixar: '<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>', cartao: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>',
   calmais: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 12.5v5M9.5 15h5"/>', alerta: '<path d="M12 3.5 2.5 20.5h19z"/><path d="M12 10v4.5M12 17.5h.01"/>',
   externo: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>', alvo: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  capelo: '<path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v5c0 1.5 2.5 3 5.5 3s5.5-1.5 5.5-3v-5M21.5 9v5"/>',
+  whats: '<path d="M20.5 11.8a8.5 8.5 0 0 1-12.6 7.4L3.5 20.5l1.3-4.2A8.5 8.5 0 1 1 20.5 11.8z"/><path d="M9 8.5c0 3.5 2.5 6.5 6 6.5l1-1.5-2-1-1 .8c-1-.5-2-1.5-2.5-2.5l.8-1-1-2z"/>',
+  revisar: '<path d="M4 12a8 8 0 0 1 14-5.3L20 8.5M20 4v4.5h-4.5"/><path d="M20 12a8 8 0 0 1-14 5.3L4 15.5M4 20v-4.5h4.5"/>',
 };
 const ic = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[n] || ''}</svg>`;
 $$('[data-ic]').forEach((el) => (el.innerHTML = ic(el.dataset.ic)));
@@ -124,7 +127,7 @@ function desenharRota(pts, alto = 200) {
 }
 
 // ---------- navegação ----------
-const ABAS = { inicio: telaInicio, treino: telaTreino, dinheiro: telaDinheiro, agenda: telaAgenda, mais: telaMais, leitura: telaLeitura, noticias: telaNoticias, ajustes: telaAjustes };
+const ABAS = { inicio: telaInicio, treino: telaTreino, estudos: telaEstudos, dinheiro: telaDinheiro, agenda: telaAgenda, mais: telaMais, leitura: telaLeitura, noticias: telaNoticias, ajustes: telaAjustes };
 let aba = 'inicio', sub = {};
 function ir(destino) {
   const [a, s] = String(destino || 'inicio').split('/');
@@ -190,6 +193,10 @@ async function telaInicio() {
     <section class="cartao c6"><header><h2>${ic('carteira')} Gastos de ${MESES[+hoje().slice(5, 7) - 1]}</h2><button class="mini primario" data-gasto>${ic('mais')} Gasto</button></header>
       <div class="grande">${reais(G.total)}</div><small>hoje: ${reais(G.hoje)} · ${G.lista.length} lançamento${G.lista.length === 1 ? '' : 's'}</small>
     </section>
+    ${E.materias.length ? (() => { const R = estudosResumo(); return `<section class="cartao c6"><header><h2>${ic('capelo')} Estudos</h2><button class="mini" data-ir="estudos">ver</button></header>
+      <div class="linha"><div class="tit"><span>${horasTxt(R.semanaH)} de ${R.meta} h na semana</span><div class="barra" style="margin-top:6px"><div style="width:${Math.min(100, (R.semanaH / (R.meta || 1)) * 100)}%"></div></div></div></div>
+      ${R.revisoesHoje.length ? `<div class="linha"><div class="tit"><span>${ic('revisar')} ${R.revisoesHoje.length} revis${R.revisoesHoje.length > 1 ? 'ões' : 'ão'} para hoje</span></div></div>` : ''}
+      ${R.proximas[0] ? `<div class="linha"><div class="tit"><span>${esc(R.proximas[0].titulo)}</span><small>${esc(materia(R.proximas[0].materiaId).nome)}</small></div><span class="etiqueta ${diasEntre(hoje(), R.proximas[0].data) <= 3 ? 'vermelha' : ''}">${contagem(R.proximas[0].data)}</span></div>` : ''}</section>`; })() : ''}
     ${L.atual ? `<section class="cartao c6"><header><h2>${ic('livro')} Lendo</h2><button class="mini" data-ir="leitura">ver</button></header>
       <b>${esc(L.atual.titulo)}</b><div class="barra" style="margin:8px 0 4px"><div style="width:${L.atual.pct || 0}%"></div></div><small>página ${L.atual.pagina}${L.atual.paginas ? ` de ${L.atual.paginas}` : ''}${L.sequencia > 1 ? ` · ${L.sequencia} dias seguidos` : ''}</small></section>` : ''}
     <section class="cartao" id="manchetes"><header><h2>${ic('jornal')} Notícias</h2><button class="mini" data-ir="noticias">ver</button></header><p class="vazio">Carregando…</p></section>
@@ -362,7 +369,7 @@ function treinoAcademia() {
   $('#treinoConteudo').innerHTML = `<div class="grade">
     <section class="cartao destaque"><div class="anel">${anel(A.semanaQtd / (A.meta || 1), { tam: 104, cor: '#fff', texto: `${A.semanaQtd}/${A.meta}`, sub: 'na semana', claro: true })}
       <div><small>Próximo treino</small><div class="grande" style="font-size:22px">${A.proxima ? esc(A.proxima.nome) : 'crie uma ficha'}</div><small>${A.sequencia > 1 ? `🔥 ${A.sequencia} semanas seguidas na meta · ` : ''}${A.mesQtd} treino${A.mesQtd === 1 ? '' : 's'} no mês</small></div></div>
-      <button class="largo" style="margin-top:14px;background:#fff;color:var(--acento);border:0" data-treinar>${ic('haltere')} Treinar agora</button>
+      <div class="dupla" style="margin-top:14px"><button class="largo" style="background:#fff;color:var(--acento);border:0" data-treinar>${ic('haltere')} Treinar agora</button><button class="largo" style="background:rgba(255,255,255,.2);color:#fff;border:0" id="treinoManual">${ic('mais')} Registrar</button></div>
     </section>
     <section class="cartao c6"><header><h2>${ic('agenda')} Frequência</h2><small>5 semanas</small></header>
       <div class="calendario">${['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((d) => `<span class="dsem">${d}</span>`).join('')}${dias.map((d) => `<span class="${A.diasMarcados.has(d) ? 'feito' : ''} ${d === hoje() ? 'hoje' : ''}">${+d.slice(8)}</span>`).join('')}</div>
@@ -380,6 +387,7 @@ function treinoAcademia() {
       ${A.historico.length ? '<small>O número à direita é o volume do treino (carga × repetições).</small>' : ''}
     </section></div>`;
   $('#novaFicha').onclick = () => formFicha();
+  $('#treinoManual').onclick = () => formTreinoManual();
   if ($('#fichasModelo')) $('#fichasModelo').onclick = () => { E.fichas = FICHAS_MODELO.map((f) => novaFicha(f.nome, f.exercicios)); salvar(); render(); };
   $$('[data-ficha]').forEach((r) => (r.onclick = () => formFicha(E.fichas.find((f) => f.id === r.dataset.ficha))));
   if ($('#exSel')) $('#exSel').onchange = (e) => { sub.ex = e.target.value; render(); };
@@ -471,10 +479,56 @@ function treinarAgora(ficha) {
   desenhar();
 }
 function verSessao(t) {
-  modal(`<h2>${esc(t.fichaNome)} · ${diaCurto(t.data)}</h2><small>${Math.round(t.duracaoSeg / 60)} minutos</small>
+  modal(`<h2>${esc(t.fichaNome)} · ${diaCurto(t.data)}</h2><small>${Math.round(t.duracaoSeg / 60)} minutos${t.manual ? ' · lançado à mão' : ''}</small>
     ${t.exercicios.map((e) => `<div><b>${esc(e.nome)}</b><br><small>${e.series.map((s) => (s.feito ? '' : '<s>') + `${num(s.carga, s.carga % 1 ? 1 : 0)} kg × ${esc(s.reps)}` + (s.feito ? '' : '</s>')).join(' · ')}</small></div>`).join('')}
-    <div class="dupla"><button type="button" id="apagarS" style="color:var(--vermelho)">${ic('lixo')} Apagar</button><button value="cancelar" class="primario">Fechar</button></div>`, () => {}, { semBotoes: true });
+    <div class="tripla"><button type="button" id="apagarS" style="color:var(--vermelho)">${ic('lixo')}</button><button type="button" id="editarS">${ic('lapis')} Editar</button><button value="cancelar" class="primario">Fechar</button></div>`, () => {}, { semBotoes: true });
   $('#apagarS').onclick = () => { if (confirm('Apagar este treino do histórico?')) { E.treinos = E.treinos.filter((x) => x.id !== t.id); salvar(); $('#modal').close(); render(); } };
+  $('#editarS').onclick = () => { $('#modal').close(); setTimeout(() => formTreinoManual(t), 50); };
+}
+// treino lançado à mão (ou corrigido depois): escolhe a ficha (ou treino livre) e põe as séries que fez
+function formTreinoManual(t) {
+  const novo = !t;
+  const S = t ? { data: t.data, fichaId: t.fichaId || '', nome: t.fichaNome, min: Math.round(t.duracaoSeg / 60) || '', exs: t.exercicios.map((e) => ({ nome: e.nome, series: e.series.filter((s) => s.feito).map((s) => ({ carga: s.carga, reps: s.reps })) })) }
+    : { data: hoje(), fichaId: '', nome: '', min: 60, exs: [{ nome: '', series: [{ carga: '', reps: '' }] }] };
+  const daFicha = (f) => f.exercicios.map((e) => ({ nome: e.nome, series: Array.from({ length: e.series }, () => ({ carga: e.carga || '', reps: parseInt(e.reps) || '' })) }));
+  const blocos = () => S.exs.map((e, i) => `<div class="exercicio" style="padding:10px">
+      <div style="display:flex;gap:8px"><input data-ex-nome="${i}" value="${esc(e.nome)}" placeholder="Exercício (ex.: agachamento)" style="flex:1"><button type="button" class="icone" data-tirar-ex="${i}" aria-label="Tirar exercício">${ic('lixo')}</button></div>
+      ${e.series.map((s, j) => `<div class="serie" style="grid-template-columns:26px 1fr 1fr 40px"><span class="n">${j + 1}</span><input data-kg="${i}-${j}" inputmode="decimal" value="${String(s.carga ?? '').replace('.', ',')}" placeholder="kg" aria-label="Carga"><input data-rp="${i}-${j}" inputmode="numeric" value="${esc(s.reps ?? '')}" placeholder="reps" aria-label="Repetições"><button type="button" class="icone" data-tirar-serie="${i}-${j}" aria-label="Tirar série">${ic('fechar')}</button></div>`).join('')}
+      <button type="button" class="mini" data-add-serie="${i}" style="margin-top:8px">${ic('mais')} Série</button></div>`).join('');
+  const ler = () => {
+    S.data = f.data.value; S.min = f.min.value; S.nome = f.nome.value; S.fichaId = f.ficha.value;
+    $$('[data-ex-nome]', f).forEach((x) => (S.exs[+x.dataset.exNome].nome = x.value));
+    $$('[data-kg]', f).forEach((x) => { const [i, j] = x.dataset.kg.split('-').map(Number); S.exs[i].series[j].carga = x.value; });
+    $$('[data-rp]', f).forEach((x) => { const [i, j] = x.dataset.rp.split('-').map(Number); S.exs[i].series[j].reps = x.value; });
+  };
+  const f = modal(`<h2>${novo ? 'Registrar treino' : 'Editar treino'}</h2>
+    <div class="dupla"><label>Dia<input type="date" name="data" value="${S.data}" max="${hoje()}"></label><label>Duração (min)<input name="min" type="number" min="1" value="${S.min}"></label></div>
+    <label>Treino<select name="ficha"><option value="">Treino livre</option>${E.fichas.map((x) => `<option value="${x.id}" ${x.id === S.fichaId ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
+    <label id="nomeLivre">Nome do treino<input name="nome" value="${esc(S.fichaId ? '' : S.nome)}" placeholder="Ex.: Funcional, aula de glúteo"></label>
+    <div id="exsManual" class="form"></div><button type="button" id="addExManual">${ic('mais')} Exercício</button>
+    <small>Coloque só as séries que você fez. Série sem carga (peso do corpo) pode ficar com o kg vazio.</small>`,
+  () => {
+    ler();
+    const exercicios = S.exs.map((e) => ({ nome: e.nome.trim(), series: e.series.filter((s) => String(s.reps).trim() || String(s.carga).trim()).map((s) => ({ reps: String(s.reps).trim(), carga: valorDe(s.carga) || 0, feito: true })) })).filter((e) => e.nome && e.series.length);
+    if (!exercicios.length) throw new Error('Coloque pelo menos um exercício com uma série.');
+    const ficha = E.fichas.find((x) => x.id === S.fichaId);
+    const dados = { data: S.data || hoje(), fichaId: ficha ? ficha.id : null, fichaNome: ficha ? ficha.nome : S.nome.trim() || 'Treino livre', duracaoSeg: (+S.min || 0) * 60, exercicios, manual: true };
+    if (novo) E.treinos.push({ id: id(), ...dados }); else Object.assign(t, dados);
+    // treino da ficha: guarda a maior carga de cada exercício para o próximo
+    if (ficha) for (const e of exercicios) { const fe = ficha.exercicios.find((x) => sem(x.nome) === sem(e.nome)); if (fe) fe.carga = Math.max(...e.series.map((s) => s.carga)); }
+    salvar(); const A = academiaResumo(); avisar(novo ? `Treino registrado! ${A.semanaQtd}/${A.meta} na semana 💪` : 'Treino atualizado');
+  });
+  const religar = () => {
+    $('#exsManual').innerHTML = blocos();
+    $('#nomeLivre').style.display = f.ficha.value ? 'none' : '';
+    $$('[data-add-serie]', f).forEach((b) => (b.onclick = () => { ler(); const e = S.exs[+b.dataset.addSerie], ult = e.series[e.series.length - 1] || {}; e.series.push({ carga: ult.carga ?? '', reps: ult.reps ?? '' }); religar(); }));
+    $$('[data-tirar-serie]', f).forEach((b) => (b.onclick = () => { ler(); const [i, j] = b.dataset.tirarSerie.split('-').map(Number); S.exs[i].series.splice(j, 1); if (!S.exs[i].series.length) S.exs[i].series.push({ carga: '', reps: '' }); religar(); }));
+    $$('[data-tirar-ex]', f).forEach((b) => (b.onclick = () => { ler(); S.exs.splice(+b.dataset.tirarEx, 1); if (!S.exs.length) S.exs.push({ nome: '', series: [{ carga: '', reps: '' }] }); religar(); }));
+  };
+  // escolheu uma ficha: já vem com os exercícios e as cargas dela (dá para mudar)
+  f.ficha.onchange = () => { ler(); const fi = E.fichas.find((x) => x.id === f.ficha.value); if (fi && (novo || confirm('Trocar os exercícios pelos da ficha?'))) S.exs = daFicha(fi); religar(); };
+  $('#addExManual').onclick = () => { ler(); S.exs.push({ nome: '', series: [{ carga: '', reps: '' }] }); religar(); $(`[data-ex-nome="${S.exs.length - 1}"]`).focus(); };
+  religar();
 }
 
 // ---------- corpo ----------
@@ -501,6 +555,181 @@ function treinoCorpo() {
     E.corpo = E.corpo.filter((x) => x.data !== r.data).concat(r); salvar(); avisar('Medidas salvas');
   });
   $$('[data-apagar-medida]').forEach((b) => (b.onclick = () => { if (confirm('Apagar as medidas deste dia?')) { E.corpo = E.corpo.filter((x) => x.data !== b.dataset.apagarMedida); salvar(); render(); } }));
+}
+
+// ---------- caixinha "Avisar no WhatsApp" (aparece quando os avisos estão ligados em Ajustes) ----------
+const caixaWhats = (marcado = true, legenda = 'Avisar no WhatsApp') => !NUVEM.url ? ''
+  : avisosLigados() ? `<label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="whats" ${marcado ? 'checked' : ''}> ${ic('whats')} ${legenda}</label>`
+  : '<small>Quer aviso no WhatsApp? Ligue em Mais › Ajustes › Avisos no WhatsApp.</small>';
+const avisoMarca = (itemId) => (temAviso(itemId) ? `<span class="etiqueta verde" title="Vai avisar no WhatsApp">${ic('whats')}</span>` : '');
+
+// ==================== ESTUDOS ====================
+async function telaEstudos() {
+  const s = sub.estudos || 'hoje';
+  $('#conteudo').innerHTML = `<div class="topo"><h1>Estudos</h1></div>${segmento(s, [['hoje', 'Hoje'], ['materias', 'Matérias'], ['provas', 'Provas']])}<div id="estConteudo"></div>`;
+  ligarSegmento();
+  ({ hoje: estudosHoje, materias: estudosMaterias, provas: estudosProvas })[s]();
+  ligarComuns();
+}
+const horasTxt = (h) => (h < 1 ? Math.round(h * 60) + ' min' : num(h, h % 1 ? 1 : 0) + ' h');
+const contagem = (d) => { const n = diasEntre(hoje(), d); return n === 0 ? 'hoje' : n === 1 ? 'amanhã' : `em ${n} dias`; };
+function estudosHoje() {
+  const R = estudosResumo();
+  $('#estConteudo').innerHTML = `<div class="grade">
+    <section class="cartao destaque"><div class="anel">${anel(R.semanaH / (R.meta || 1), { tam: 104, cor: '#fff', texto: horasTxt(R.semanaH), sub: 'na semana', claro: true })}
+      <div><small>Meta da semana</small><div class="grande">${R.meta} h</div><small>hoje: ${horasTxt(R.hojeMin / 60)}${R.sequencia > 1 ? ` · 🔥 ${R.sequencia} dias seguidos` : ''}</small></div></div>
+      <div class="dupla" style="margin-top:14px"><button class="largo" style="background:#fff;color:var(--acento);border:0" id="estudarAgora">${ic('play')} Estudar agora</button><button class="largo" style="background:rgba(255,255,255,.2);color:#fff;border:0" id="lancarEstudo">${ic('mais')} Lançar</button></div>
+    </section>
+    <section class="cartao c6"><header><h2>${ic('revisar')} Revisões de hoje</h2></header>
+      ${R.revisoesHoje.length ? R.revisoesHoje.map((r) => `<div class="linha"><input type="checkbox" data-revisao="${r.id}" aria-label="Revisada"><div class="tit"><span>${esc(r.assunto)}</span><small><span style="color:${materia(r.materiaId).cor}">●</span> ${esc(materia(r.materiaId).nome)} · ${r.dias === 1 ? '1 dia' : r.dias + ' dias'} depois${r.data < hoje() ? ` · <b style="color:var(--vermelho)">atrasada</b>` : ''}</small></div>${avisoMarca(r.id)}</div>`).join('')
+        : '<p class="vazio">Nada para revisar hoje. ✨</p>'}
+      <small>Quando você lança um estudo com assunto, o app marca revisões em 1, 7 e 30 dias.</small>
+    </section>
+    <section class="cartao c6"><header><h2>${ic('agenda')} Próximas provas e trabalhos</h2><button class="mini" data-ir="estudos/provas">ver</button></header>
+      ${R.proximas.length ? R.proximas.slice(0, 5).map((p) => `<div class="linha"><div class="tit"><span>${esc(p.titulo)}</span><small><span style="color:${materia(p.materiaId).cor}">●</span> ${esc(materia(p.materiaId).nome)} · ${diaCurto(p.data)}${p.hora ? ' ' + p.hora : ''}</small></div><span class="etiqueta ${diasEntre(hoje(), p.data) <= 3 ? 'vermelha' : ''}">${contagem(p.data)}</span></div>`).join('')
+        : '<p class="vazio">Nenhuma prova marcada.</p>'}
+    </section>
+    <section class="cartao"><header><h2>Horas por semana</h2></header>${grafBarras(R.semanas.map((w, i) => ({ r: dataBR(w.ini), v: w.h, cor: i === R.semanas.length - 1 ? 'var(--acento)' : 'var(--acento-claro)' })), { meta: R.meta, formato: (v) => num(v, v % 1 ? 1 : 0) })}</section>
+    <section class="cartao"><header><h2>${ic('relogio')} Últimos estudos</h2></header>
+      ${R.sessoes.length ? R.sessoes.slice(0, 15).map((x) => `<div class="linha clicavel" data-sessao-est="${x.id}"><div class="tit"><span>${esc(x.assunto || materia(x.materiaId).nome)}</span><small><span style="color:${materia(x.materiaId).cor}">●</span> ${esc(materia(x.materiaId).nome)} · ${diaCurto(x.data)}</small></div><span class="val">${horasTxt(x.min / 60)}</span></div>`).join('')
+        : '<p class="vazio">Nenhum estudo lançado ainda.</p>'}
+    </section></div>`;
+  $('#estudarAgora').onclick = () => estudarAgora();
+  $('#lancarEstudo').onclick = () => formEstudo();
+  $$('[data-revisao]').forEach((c) => (c.onchange = () => { const r = E.revisoes.find((x) => x.id === c.dataset.revisao); r.feita = true; r.feitaEm = hoje(); cancelarAvisos(r.id); salvar(); avisar('Revisão feita ✓'); render(); }));
+  $$('[data-sessao-est]').forEach((r) => (r.onclick = () => { const x = E.sessoes.find((s) => s.id === r.dataset.sessaoEst);
+    if (confirm(`Apagar este estudo (${horasTxt(x.min / 60)} de ${materia(x.materiaId).nome})? As revisões dele também saem.`)) {
+      E.revisoes.filter((v) => v.sessao === x.id && !v.feita).forEach((v) => cancelarAvisos(v.id));
+      E.revisoes = E.revisoes.filter((v) => v.sessao !== x.id || v.feita); E.sessoes = E.sessoes.filter((s) => s.id !== x.id); salvar(); render();
+    } }));
+}
+const opcoesMateria = (sel) => E.materias.map((m) => `<option value="${m.id}" ${m.id === sel ? 'selected' : ''}>${esc(m.nome)}</option>`).join('');
+const precisaMateria = () => { if (E.materias.length) return false; avisar('Cadastre uma matéria primeiro', true); sub.estudos = 'materias'; render(); setTimeout(() => formMateria(), 200); return true; };
+// lança o estudo e marca as revisões (com aviso no WhatsApp às 9h, se ela quiser)
+function salvarEstudo(v, min) {
+  const r = registrarEstudo({ materiaId: v.materia, min, assunto: v.assunto, data: v.data || hoje(), revisar: !!v.revisar });
+  if (v.whats) for (const rv of r.revisoes) agendarAvisos(rv.id, [{ quando: instante(rv.data, '09:00'), texto: `🔁 Revisão de *${materia(rv.materiaId).nome}*: ${rv.assunto} (estudou há ${rv.dias} dia${rv.dias > 1 ? 's' : ''})` }]);
+  return r;
+}
+function formEstudo() {
+  if (precisaMateria()) return;
+  modal(`<h2>Lançar estudo</h2><div class="dupla"><label>Matéria<select name="materia">${opcoesMateria()}</select></label><label>Tempo<input name="tempo" required inputmode="numeric" placeholder="1:30 ou 45"></label></div>
+    <label>Assunto<input name="assunto" placeholder="Ex.: sistema nervoso, cap. 4"></label><label>Data<input type="date" name="data" value="${hoje()}"></label>
+    <label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="revisar" checked> Marcar revisões em 1, 7 e 30 dias</label>${caixaWhats(true, 'Avisar as revisões no WhatsApp')}`,
+  (v) => {
+    const t = String(v.tempo).trim(), min = t.includes(':') ? lerTempo(t + ':00') / 60 : +t.replace(',', '.');
+    if (!(min > 0 && min < 1440)) throw new Error('Tempo inválido (ex.: 45 para minutos ou 1:30).');
+    const r = salvarEstudo(v, min); avisar(`${horasTxt(min / 60)} de estudo${r.revisoes.length ? ' · revisões marcadas' : ''} 📚`);
+  });
+}
+// cronômetro: livre ou pomodoro (25 min estudando + 5 de pausa)
+function estudarAgora() {
+  if (precisaMateria()) return;
+  const f = modal(`<h2>Estudar agora</h2><label>Matéria<select name="materia">${opcoesMateria()}</select></label><label>Assunto<input name="assunto" placeholder="o que vai estudar"></label>
+    <label>Modo<select name="modo"><option value="pomodoro">Pomodoro (25 min + 5 de pausa)</option><option value="livre">Livre (cronômetro)</option></select></label>`,
+  (v) => { setTimeout(() => cronometroEstudo(v), 80); }, { textoOk: 'Começar' });
+  f.querySelector('button.primario').textContent = 'Começar';
+}
+function cronometroEstudo(v) {
+  const T = { estudo: 0, pausa: false, faseIni: Date.now(), rodando: true, acumFase: 0, ciclos: 0, rel: null, wake: null };
+  const tc = $('#tela-cheia'); tc.hidden = false; document.body.style.overflow = 'hidden';
+  try { if ('wakeLock' in navigator) navigator.wakeLock.request('screen').then((w) => (T.wake = w)).catch(() => {}); } catch {}
+  const pomodoro = v.modo === 'pomodoro', FASE = () => (T.pausa ? 5 : 25) * 60;
+  const fase = () => T.acumFase + (T.rodando ? (Date.now() - T.faseIni) / 1000 : 0);
+  const estudoTotal = () => T.estudo + (!T.pausa ? fase() : 0);
+  const desenhar = () => {
+    tc.innerHTML = `<div class="tc-topo"><button class="icone" id="ceFechar">${ic('fechar')}</button><div style="text-align:center"><b>${esc(materia(v.materia).nome)}</b><br><small>${esc(v.assunto || '')}</small></div><button class="primario mini" id="ceFim">Terminar</button></div>
+      <div class="corrida-viva" style="margin-top:30px"><small id="ceFase">${pomodoro ? (T.pausa ? '☕ Pausa' : '📚 Foco') : 'Estudando'}</small><div class="cv-dist" id="ceTempo">0:00</div>
+        <small id="ceTotal"></small>
+        <div class="cv-botoes"><button class="${T.rodando ? '' : 'primario'}" id="ceBotao" aria-label="${T.rodando ? 'Pausar' : 'Continuar'}">${ic(T.rodando ? 'pausa' : 'play')}</button></div>
+        <small>${pomodoro ? 'A cada 25 minutos o celular vibra para uma pausa de 5.' : 'Deixe o app aberto enquanto estuda.'}</small></div>`;
+    $('#ceFechar').onclick = () => { if (estudoTotal() < 60 || confirm('Sair sem lançar este estudo?')) fechar(); };
+    $('#ceBotao').onclick = () => { if (T.rodando) { T.acumFase = fase(); T.rodando = false; } else { T.faseIni = Date.now(); T.rodando = true; } desenhar(); };
+    $('#ceFim').onclick = terminar;
+    numeros();
+  };
+  const numeros = () => {
+    if (!$('#ceTempo')) return;
+    if (pomodoro && fase() >= FASE()) {
+      if (!T.pausa) { T.estudo += FASE(); T.ciclos++; } T.pausa = !T.pausa; T.acumFase = 0; T.faseIni = Date.now(); vibrar([300, 150, 300]);
+      $('#ceFase').textContent = T.pausa ? '☕ Pausa' : '📚 Foco';
+    }
+    $('#ceTempo').textContent = fmtTempo(pomodoro ? Math.max(0, FASE() - fase()) : fase());
+    $('#ceTotal').textContent = `estudado: ${fmtTempo(estudoTotal())}${pomodoro ? ` · ${T.ciclos} pomodoro${T.ciclos === 1 ? '' : 's'}` : ''}`;
+  };
+  const terminar = () => {
+    const min = Math.round(estudoTotal() / 60);
+    if (min < 1) { if (confirm('Menos de 1 minuto. Sair sem lançar?')) fechar(); return; }
+    fechar();
+    modal(`<h2>${horasTxt(min / 60)} de ${esc(materia(v.materia).nome)} 🎉</h2><label>Assunto<input name="assunto" value="${esc(v.assunto || '')}" placeholder="o que estudou"></label>
+      <label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="revisar" checked> Marcar revisões em 1, 7 e 30 dias</label>${caixaWhats(true, 'Avisar as revisões no WhatsApp')}`,
+    (x) => { salvarEstudo({ ...x, materia: v.materia }, min); avisar('Estudo lançado 📚'); sub.estudos = 'hoje'; ir('estudos/hoje'); }, { textoOk: 'Lançar' });
+  };
+  const fechar = () => { clearInterval(T.rel); try { T.wake && T.wake.release(); } catch {} tc.hidden = true; tc.innerHTML = ''; document.body.style.overflow = ''; };
+  T.rel = setInterval(numeros, 1000);
+  desenhar();
+}
+function estudosMaterias() {
+  const R = estudosResumo();
+  $('#estConteudo').innerHTML = `<div class="grade">
+    <section class="cartao"><header><h2>${ic('capelo')} Matérias</h2><button class="mini primario" id="novaMateria">${ic('mais')} Matéria</button></header>
+      ${R.porMateria.length ? R.porMateria.map((m) => `<div class="linha clicavel" data-materia="${m.id}"><span style="width:12px;height:12px;border-radius:50%;background:${m.cor};flex-shrink:0"></span><div class="tit"><span>${esc(m.nome)}</span><small>semana ${horasTxt(m.semana)} · mês ${horasTxt(m.mes)} · total ${horasTxt(m.total)}</small></div>${m.media != null ? `<span class="etiqueta ${m.media >= 7 ? 'verde' : m.media >= 5 ? '' : 'vermelha'}">média ${num(m.media, 1)}</span>` : ''}</div>`).join('')
+        : '<p class="vazio">Cadastre as matérias (ou disciplinas, cursos, concursos) que você estuda.</p>'}
+    </section>
+    ${R.porMateria.some((m) => m.mes) ? `<section class="cartao"><header><h2>Horas no mês</h2></header>${R.porMateria.filter((m) => m.mes).sort((a, b) => b.mes - a.mes).map((m, i, l) => `<div class="cat"><span>${esc(m.nome)}</span><div class="barra"><div style="width:${(m.mes / l[0].mes) * 100}%;background:${m.cor}"></div></div><b>${horasTxt(m.mes)}</b></div>`).join('')}</section>` : ''}
+  </div>`;
+  $('#novaMateria').onclick = () => formMateria();
+  $$('[data-materia]').forEach((r) => (r.onclick = () => formMateria(E.materias.find((m) => m.id === r.dataset.materia))));
+}
+function formMateria(m) {
+  const nova = !m, cor = m ? m.cor : CORES_MATERIA[E.materias.length % CORES_MATERIA.length];
+  modal(`<h2>${nova ? 'Nova matéria' : 'Matéria'}</h2><label>Nome<input name="nome" required value="${esc(m && m.nome)}" placeholder="Ex.: Anatomia, Inglês, Concurso TJ"></label>
+    <label>Cor<div class="acoes">${CORES_MATERIA.map((c) => `<label style="display:inline-flex"><input type="radio" name="cor" value="${c}" ${c === cor ? 'checked' : ''} style="accent-color:${c}"><span style="width:22px;height:22px;border-radius:50%;background:${c};display:inline-block"></span></label>`).join('')}</div></label>
+    ${nova ? '' : `<button type="button" class="mini" id="apagarMateria" style="justify-self:start;color:var(--vermelho)">${ic('lixo')} Apagar matéria</button>`}`,
+  (v) => { if (nova) E.materias.push({ id: id(), nome: v.nome.trim(), cor: v.cor || cor }); else Object.assign(m, { nome: v.nome.trim(), cor: v.cor || cor }); salvar(); avisar('Salvo'); });
+  if ($('#apagarMateria')) $('#apagarMateria').onclick = () => {
+    if (E.sessoes.some((s) => s.materiaId === m.id) || E.provas.some((p) => p.materiaId === m.id)) return avisar('Esta matéria tem estudos ou provas lançados.', true);
+    if (confirm('Apagar esta matéria?')) { E.materias = E.materias.filter((x) => x.id !== m.id); salvar(); $('#modal').close(); render(); }
+  };
+}
+function estudosProvas() {
+  const fut = E.provas.filter((p) => p.data >= hoje() && (p.nota == null || p.nota === '')).sort((a, b) => a.data.localeCompare(b.data));
+  const pass = E.provas.filter((p) => !fut.includes(p)).sort((a, b) => b.data.localeCompare(a.data));
+  const linha = (p) => `<div class="linha clicavel" data-prova="${p.id}"><div class="tit"><span>${p.tipo === 'trabalho' ? '📝' : '📖'} ${esc(p.titulo)}</span><small><span style="color:${materia(p.materiaId).cor}">●</span> ${esc(materia(p.materiaId).nome)} · ${diaCurto(p.data)}${p.hora ? ' ' + p.hora : ''}</small></div>
+    ${p.nota != null && p.nota !== '' ? `<span class="etiqueta ${(p.nota / (p.notaMax || 10)) * 10 >= 7 ? 'verde' : ''}">${num(p.nota, p.nota % 1 ? 1 : 0)}/${p.notaMax || 10}</span>` : `${avisoMarca(p.id)}<span class="etiqueta ${diasEntre(hoje(), p.data) <= 3 ? 'vermelha' : ''}">${p.data < hoje() ? 'sem nota' : contagem(p.data)}</span>`}</div>`;
+  $('#estConteudo').innerHTML = `<div class="grade">
+    <section class="cartao"><header><h2>${ic('agenda')} Próximas</h2><button class="mini primario" id="novaProva">${ic('mais')} Prova / trabalho</button></header>${fut.length ? fut.map(linha).join('') : '<p class="vazio">Nada marcado.</p>'}</section>
+    <section class="cartao"><header><h2>${ic('trofeu')} Notas e passadas</h2></header>${pass.length ? pass.map(linha).join('') : '<p class="vazio">As provas que já passaram aparecem aqui, com a nota.</p>'}</section>
+  </div>`;
+  $('#novaProva').onclick = () => formProva();
+  $$('[data-prova]').forEach((r) => (r.onclick = () => formProva(E.provas.find((p) => p.id === r.dataset.prova))));
+}
+// aviso de prova: na véspera às 19h e no dia às 7h (ou 2 h antes, se a prova for cedo)
+function avisarProva(p) {
+  const qual = `${p.tipo === 'trabalho' ? 'entrega do trabalho' : 'prova'} de *${materia(p.materiaId).nome}*: ${p.titulo}`;
+  const noDia = p.hora && p.hora < '09:00' ? new Date(new Date(`${p.data}T${p.hora}:00`) - 2 * 3600e3).toISOString() : instante(p.data, '07:00');
+  agendarAvisos(p.id, [{ quando: instante(somaDias(p.data, -1), '19:00'), texto: `📚 Amanhã tem ${qual}${p.hora ? ' às ' + p.hora : ''}. Bora revisar!` }, { quando: noDia, texto: `💪 Hoje: ${qual}${p.hora ? ' às ' + p.hora : ''}. Boa sorte!` }]);
+}
+function formProva(p) {
+  if (!p && precisaMateria()) return;
+  const nova = !p; p = p || { tipo: 'prova', data: somaDias(hoje(), 7), notaMax: 10, peso: 1 };
+  const passou = p.data && p.data < hoje();
+  modal(`<h2>${nova ? 'Nova prova ou trabalho' : esc(p.titulo)}</h2>
+    <div class="dupla"><label>Tipo<select name="tipo"><option value="prova" ${p.tipo === 'prova' ? 'selected' : ''}>Prova</option><option value="trabalho" ${p.tipo === 'trabalho' ? 'selected' : ''}>Trabalho / entrega</option></select></label><label>Matéria<select name="materia">${opcoesMateria(p.materiaId)}</select></label></div>
+    <label>Descrição<input name="titulo" required value="${esc(p.titulo)}" placeholder="Ex.: P1 — capítulos 1 a 4"></label>
+    <div class="dupla"><label>Dia<input type="date" name="data" required value="${p.data}"></label><label>Hora<input type="time" name="hora" value="${p.hora || ''}"></label></div>
+    <div class="tripla"><label>Nota<input name="nota" inputmode="decimal" value="${p.nota != null ? String(p.nota).replace('.', ',') : ''}" placeholder="—"></label><label>Vale<input name="notaMax" inputmode="decimal" value="${p.notaMax || 10}"></label><label>Peso<input name="peso" inputmode="decimal" value="${p.peso || 1}"></label></div>
+    ${passou ? '' : caixaWhats(nova || temAviso(p.id), 'Avisar no WhatsApp (véspera às 19h e no dia)')}
+    ${nova ? '' : `<button type="button" class="mini" id="apagarProva" style="justify-self:start;color:var(--vermelho)">${ic('lixo')} Apagar</button>`}`,
+  (v) => {
+    const nota = v.nota === '' ? null : valorDe(v.nota);
+    Object.assign(p, { tipo: v.tipo, materiaId: v.materia, titulo: v.titulo.trim(), data: v.data, hora: v.hora || null, nota, notaMax: valorDe(v.notaMax) || 10, peso: valorDe(v.peso) || 1 });
+    if (nova) { p.id = id(); E.provas.push(p); }
+    // com nota (já fez) ou sem a caixinha marcada: sem aviso
+    if (v.whats && nota == null) avisarProva(p); else cancelarAvisos(p.id);
+    salvar(); avisar(nota != null ? 'Nota salva' : 'Salvo');
+  });
+  if ($('#apagarProva')) $('#apagarProva').onclick = () => { if (confirm('Apagar?')) { cancelarAvisos(p.id); E.provas = E.provas.filter((x) => x.id !== p.id); salvar(); $('#modal').close(); render(); } };
 }
 
 // ==================== DINHEIRO ====================
@@ -546,14 +775,15 @@ function formEditarGasto(g) {
     <div class="dupla"><label>Valor (R$)<input name="valor" required inputmode="decimal" value="${String(g.valor).replace('.', ',')}"></label><label>${conta ? 'Vencimento' : 'Data'}<input type="date" name="data" value="${conta ? g.vencimento : g.data}"></label></div>
     <label>Descrição<input name="descricao" value="${esc(g.descricao)}"></label>
     <label>Categoria<select name="categoria">${E.config.categorias.map((c) => `<option ${c === g.categoria ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+    ${conta ? caixaWhats(temAviso(g.id), 'Avisar no WhatsApp no dia (9h)') : ''}
     <div class="dupla"><button type="button" id="apagarG" style="color:var(--vermelho)">${ic('lixo')} Apagar</button>${conta ? `<button type="button" id="calG">${ic('calmais')} Calendário</button>` : '<span></span>'}</div>`,
   (v) => {
     const val = valorDe(v.valor); if (!(val > 0)) throw new Error('Valor inválido.');
     Object.assign(g, { valor: Math.round(val * 100) / 100, descricao: v.descricao, categoria: v.categoria });
-    if (conta) { g.vencimento = v.data; g.data = v.data; } else g.data = v.data;
+    if (conta) { g.vencimento = v.data; g.data = v.data; if (v.whats) avisarConta(g); else cancelarAvisos(g.id); } else g.data = v.data;
     salvar(); avisar('Salvo');
   });
-  $('#apagarG').onclick = () => { if (confirm('Apagar este lançamento?')) { E.gastos = E.gastos.filter((x) => x.id !== g.id); salvar(); $('#modal').close(); render(); } };
+  $('#apagarG').onclick = () => { if (confirm('Apagar este lançamento?')) { cancelarAvisos(g.id); E.gastos = E.gastos.filter((x) => x.id !== g.id); salvar(); $('#modal').close(); render(); } };
   if ($('#calG')) $('#calG').onclick = () => paraCalendario({ titulo: `Pagar ${g.descricao || g.categoria} — ${reais(g.valor)}`, data: g.vencimento });
 }
 function dinContas() {
@@ -562,7 +792,7 @@ function dinContas() {
   const meses = Object.keys(porMes).sort(), soma = (l) => l.reduce((s, i) => s + i.valor, 0), vencidas = itens.filter((i) => i.venc < hoje());
   const ps = parcelados(), abertos = ps.filter((p) => !p.quitado);
   const linha = (i) => i.tipo === 'conta'
-    ? `<div class="linha"><div class="tit clicavel" data-g="${i.g.id}"><span>${esc(i.g.descricao || i.g.categoria)}</span><small>${i.venc < hoje() ? '<span class="etiqueta vermelha">vencida</span> ' : ''}vence ${diaCurto(i.venc)}</small></div><span class="val">${reais(i.valor)}</span><button class="mini verde" data-pagar="${i.g.id}">${ic('check')}</button></div>`
+    ? `<div class="linha"><div class="tit clicavel" data-g="${i.g.id}"><span>${esc(i.g.descricao || i.g.categoria)}</span><small>${i.venc < hoje() ? '<span class="etiqueta vermelha">vencida</span> ' : ''}vence ${diaCurto(i.venc)}</small></div>${avisoMarca(i.g.id)}<span class="val">${reais(i.valor)}</span><button class="mini verde" data-pagar="${i.g.id}">${ic('check')}</button></div>`
     : `<div class="linha"><div class="tit"><span>${ic('cartao')} Fatura ${esc(i.f.cartao)}</span><small>vence ${diaCurto(i.venc)} · ${i.f.itens.length} compra${i.f.itens.length > 1 ? 's' : ''}</small></div><span class="val">${reais(i.valor)}</span><button class="mini verde" data-fatura="${esc(i.f.cartao)}|${i.venc}">${ic('check')}</button></div>`;
   $('#dinConteudo').innerHTML = `<div class="grade">
     <section class="cartao destaque"><small>Em aberto</small><div class="grande">${reais(soma(itens))}</div>
@@ -580,8 +810,9 @@ function dinContas() {
     ${!itens.length ? '<p class="vazio">Nada a pagar. 🎉</p>' : ''}
   </div>`;
   $('#novaConta').onclick = () => modal(`<h2>Conta a pagar</h2><div class="dupla"><label>Valor (R$)<input name="valor" required inputmode="decimal"></label><label>Vencimento<input type="date" name="vencimento" required value="${hoje()}"></label></div>
-    <label>Descrição<input name="descricao" required placeholder="luz, internet, escola…"></label><label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="cal" checked> Pôr no Calendário do iPhone (aviso às 9h)</label>`,
-    (v) => { const g = contaAPagar(v); if (v.cal) paraCalendario({ titulo: `Pagar ${g.descricao} — ${reais(g.valor)}`, data: g.vencimento }); avisar('Conta anotada'); });
+    <label>Descrição<input name="descricao" required placeholder="luz, internet, escola…"></label>${caixaWhats(true, 'Avisar no WhatsApp no dia (9h)')}
+    <label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="cal" ${avisosLigados() ? '' : 'checked'}> Pôr no Calendário do iPhone (aviso às 9h)</label>`,
+    (v) => { const g = contaAPagar(v); if (v.whats) avisarConta(g); if (v.cal) paraCalendario({ titulo: `Pagar ${g.descricao} — ${reais(g.valor)}`, data: g.vencimento }); avisar('Conta anotada'); });
   $('#parcelada').onclick = () => formParcelada();
   $('#importar').onclick = () => formImportar();
   $$('[data-g]').forEach((r) => (r.onclick = () => formEditarGasto(E.gastos.find((g) => g.id === r.dataset.g))));
@@ -598,9 +829,10 @@ function formParcelada() {
   modal(`<h2>Conta parcelada</h2><label>Descrição<input name="descricao" required placeholder="Ex.: geladeira Magalu"></label>
     <div class="tripla"><label>Parcela (R$)<input name="valor" required inputmode="decimal"></label><label>Atual<input name="parcela" type="number" min="1" value="1"></label><label>De<input name="total" type="number" min="1" value="10"></label></div>
     <label>Vencimento da parcela atual<input type="date" name="vencimento" required value="${hoje()}"></label>
-    <label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="cal" checked> Pôr todas no Calendário do iPhone</label>`,
+    ${caixaWhats(true, 'Avisar cada parcela no WhatsApp (9h do dia)')}
+    <label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="cal" ${avisosLigados() ? '' : 'checked'}> Pôr todas no Calendário do iPhone</label>`,
   (v) => {
-    const r = importarContas([{ ...v, categoria: categoriaDe(v.descricao) }]);
+    const r = importarContas([{ ...v, categoria: categoriaDe(v.descricao), whats: !!v.whats }]);
     if (r.repetidos.length) throw new Error('Essa conta já está cadastrada.');
     const p = parcelados().find((x) => sem(x.descricao) === sem(v.descricao));
     if (v.cal && p && p.proxima) paraCalendario({ titulo: `Pagar ${p.descricao} — ${reais(p.valor)}`, data: p.proxima.vencimento, repetirMeses: p.faltam });
@@ -625,9 +857,10 @@ function conferirContas(itens) {
   modal(`<h2>Conferir · ${itens.length} conta${itens.length > 1 ? 's' : ''}</h2><small>Vencimento = o da parcela atual. Pode deixar em branco e definir depois.</small>
     ${itens.map((i, k) => `<div class="exercicio" style="padding:10px"><label style="display:flex;gap:8px;align-items:center;color:var(--texto)"><input type="checkbox" name="x_${k}" checked><input name="d_${k}" value="${esc(i.descricao)}" style="flex:1"></label>
       <div class="tripla" style="margin-top:6px"><label>Valor<input name="v_${k}" inputmode="decimal" value="${String(i.valor).replace('.', ',')}"></label><label>Parcela<input name="p_${k}" type="number" value="${i.parcela}"></label><label>De<input name="t_${k}" type="number" value="${i.total}"></label></div>
-      <label style="margin-top:6px">Vencimento<input type="date" name="e_${k}" value="${i.vencimento}"></label></div>`).join('')}`,
+      <label style="margin-top:6px">Vencimento<input type="date" name="e_${k}" value="${i.vencimento}"></label></div>`).join('')}
+    ${caixaWhats(true, 'Avisar as parcelas no WhatsApp (9h do dia)')}`,
   (v) => {
-    const sel = itens.map((_, k) => k).filter((k) => v['x_' + k]).map((k) => ({ descricao: v['d_' + k], valor: v['v_' + k], parcela: v['p_' + k], total: v['t_' + k], vencimento: v['e_' + k] }));
+    const sel = itens.map((_, k) => k).filter((k) => v['x_' + k]).map((k) => ({ descricao: v['d_' + k], valor: v['v_' + k], parcela: v['p_' + k], total: v['t_' + k], vencimento: v['e_' + k], whats: !!v.whats }));
     const r = importarContas(sel); avisar(`${r.feitos} cadastrada${r.feitos === 1 ? '' : 's'}${r.repetidos.length ? ` · ${r.repetidos.length} já existia${r.repetidos.length > 1 ? 'm' : ''}` : ''}`);
   }, { textoOk: 'Cadastrar' });
 }
@@ -652,16 +885,23 @@ function formCompromisso(c = {}) {
     <div class="dupla"><label>Dia<input type="date" name="data" required value="${c.data || hoje()}"></label><label>Hora<input type="time" name="hora" value="${c.hora || ''}"></label></div>
     <label>Local<input name="local" value="${esc(c.local)}"></label>
     <label>Avisar<select name="antes">${[[10, '10 min antes'], [30, '30 min antes'], [60, '1 hora antes'], [120, '2 horas antes'], [1440, '1 dia antes']].map(([v, t]) => `<option value="${v}" ${(c.antes || 30) === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
-    <label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="cal" ${c.id ? '' : 'checked'}> Pôr no Calendário do iPhone (ele avisa)</label>
+    ${caixaWhats(!c.id || temAviso(c.id))}
+    <label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="cal" ${c.id || avisosLigados() ? '' : 'checked'}> Pôr no Calendário do iPhone (ele avisa)</label>
     ${c.id ? `<button type="button" class="mini" id="apagarComp" style="justify-self:start;color:var(--vermelho)">${ic('lixo')} Apagar</button>` : ''}`,
   (v) => {
     const dados = { titulo: v.titulo.trim(), data: v.data, hora: v.hora || null, local: v.local || '', antes: +v.antes };
-    if (c.id) Object.assign(c, dados); else E.compromissos.push({ id: id(), feito: false, ...dados });
+    if (c.id) Object.assign(c, dados); else { c = { id: id(), feito: false, ...dados }; E.compromissos.push(c); }
+    if (v.whats) {
+      // com hora: X minutos antes; sem hora (dia todo): às 8h do dia (ou na véspera, se "1 dia antes")
+      const quando = dados.hora ? new Date(new Date(`${dados.data}T${dados.hora}:00`) - dados.antes * 60e3).toISOString() : instante(dados.antes >= 1440 ? somaDias(dados.data, -1) : dados.data, '08:00');
+      const qdo = dados.antes >= 1440 ? `amanhã${dados.hora ? ' às ' + dados.hora : ''}` : dados.hora ? `às ${dados.hora} (em ${dados.antes >= 60 ? dados.antes / 60 + ' h' : dados.antes + ' min'})` : 'hoje';
+      agendarAvisos(c.id, [{ quando, texto: `📌 *${dados.titulo}* ${qdo}${dados.local ? `\n📍 ${dados.local}` : ''}` }]);
+    } else cancelarAvisos(c.id);
     salvar();
     if (v.cal) paraCalendario({ titulo: dados.titulo, data: dados.data, hora: dados.hora, minutosAntes: dados.antes, notas: dados.local });
     avisar('Salvo');
   });
-  if ($('#apagarComp')) $('#apagarComp').onclick = () => { if (confirm('Apagar este compromisso?')) { E.compromissos = E.compromissos.filter((x) => x.id !== c.id); salvar(); $('#modal').close(); render(); } };
+  if ($('#apagarComp')) $('#apagarComp').onclick = () => { if (confirm('Apagar este compromisso?')) { cancelarAvisos(c.id); E.compromissos = E.compromissos.filter((x) => x.id !== c.id); salvar(); $('#modal').close(); render(); } };
 }
 
 // ==================== MAIS ====================
@@ -718,8 +958,16 @@ async function telaAjustes() {
   $('#conteudo').innerHTML = `<div class="topo"><div><button class="mini" data-ir="mais">${ic('voltar')} Mais</button><h1 style="margin-top:8px">Ajustes</h1></div></div><div class="grade">
     <section class="cartao c6"><header><h2>Você e suas metas</h2></header><form class="form" id="fMetas">
       <label>Seu nome<input name="nome" value="${esc(E.perfil.nome)}"></label>
-      <div class="tripla"><label>Km/semana<input name="km" type="number" inputmode="decimal" value="${c.meta_km_semana}"></label><label>Treinos/sem.<input name="treinos" type="number" value="${c.meta_treinos_semana}"></label><label>Páginas/dia<input name="pag" type="number" value="${c.meta_paginas_dia}"></label></div>
+      <div class="dupla"><label>Km/semana<input name="km" type="number" inputmode="decimal" value="${c.meta_km_semana}"></label><label>Treinos/semana<input name="treinos" type="number" value="${c.meta_treinos_semana}"></label></div>
+      <div class="dupla"><label>Horas de estudo/semana<input name="horas" type="number" inputmode="decimal" value="${c.meta_horas_estudo}"></label><label>Páginas/dia<input name="pag" type="number" value="${c.meta_paginas_dia}"></label></div>
       <button class="primario">Salvar</button></form></section>
+    ${NUVEM.url ? `<section class="cartao c6"><header><h2>${ic('whats')} Avisos no WhatsApp</h2>${avisosLigados() ? '<span class="etiqueta verde">ligados</span>' : ''}</header>
+      <p style="margin-top:0;font-size:14px">Compromissos, contas, provas e revisões com a caixinha <b>"Avisar no WhatsApp"</b> chegam no seu WhatsApp na hora, pelo número do <b>Painel da Vida</b>. Ele só manda avisos: o que você responder lá não é lido.</p>
+      <form class="form" id="fWhats"><label>Seu WhatsApp (com DDD)<input name="tel" inputmode="tel" value="${esc(c.whatsapp)}" placeholder="43 99999-9999"></label>
+        <label style="display:flex;gap:10px;align-items:center;color:var(--texto)"><input type="checkbox" name="liga" ${c.avisos_whats ? 'checked' : ''}> Quero receber avisos no WhatsApp</label>
+        <div class="dupla"><button class="primario">Salvar</button><button type="button" id="testeWhats" ${avisosLigados() ? '' : 'disabled'}>Enviar teste</button></div></form>
+      ${E.filaAvisos.length ? `<small style="display:block;margin-top:8px">${E.filaAvisos.length} aviso${E.filaAvisos.length > 1 ? 's' : ''} esperando internet para subir.</small>` : ''}
+      <small style="display:block;margin-top:8px">Só sai do celular o lembrete (dia, hora e texto). O resto dos seus dados continua só aqui.</small></section>` : ''}
     <section class="cartao c6"><header><h2>${ic('cartao')} Cartões</h2></header><form class="form" id="fCartoes">
       <label>Um por linha, com o dia do vencimento (ex.: <b>Nubank - dia 10</b>)<textarea name="cartoes" rows="4">${esc(c.cartoes.map((x) => `${x.nome} - dia ${x.dia}`).join('\n'))}</textarea></label>
       <label>Categorias (uma por linha)<textarea name="cats" rows="5">${esc(c.categorias.join('\n'))}</textarea></label>
@@ -732,7 +980,16 @@ async function telaAjustes() {
     <section class="cartao"><button class="mini" id="apagarTudo" style="color:var(--vermelho)">${ic('lixo')} Apagar todos os dados deste celular</button></section>
   </div>`;
   ligarComuns();
-  $('#fMetas').onsubmit = (e) => { e.preventDefault(); const f = e.target; E.perfil.nome = f.nome.value.trim(); Object.assign(c, { meta_km_semana: valorDe(f.km.value) || 15, meta_treinos_semana: +f.treinos.value || 3, meta_paginas_dia: +f.pag.value || 15 }); salvar(); avisar('Salvo'); render(); };
+  $('#fMetas').onsubmit = (e) => { e.preventDefault(); const f = e.target; E.perfil.nome = f.nome.value.trim(); Object.assign(c, { meta_km_semana: valorDe(f.km.value) || 15, meta_treinos_semana: +f.treinos.value || 3, meta_paginas_dia: +f.pag.value || 15, meta_horas_estudo: valorDe(f.horas.value) || 10 }); salvar(); avisar('Salvo'); render(); };
+  if ($('#fWhats')) {
+    $('#fWhats').onsubmit = (e) => {
+      e.preventDefault(); const f = e.target;
+      let tel = f.tel.value.replace(/\D/g, ''); if (tel.length >= 12 && tel.startsWith('55')) tel = tel.slice(2);
+      if (f.liga.checked && !/^\d{10,11}$/.test(tel)) return avisar('Coloque o celular com DDD (ex.: 43 99999-9999).', true);
+      c.whatsapp = tel; c.avisos_whats = f.liga.checked; salvar(); avisar(c.avisos_whats ? 'Avisos ligados. Toque em Enviar teste.' : 'Avisos desligados'); render();
+    };
+    $('#testeWhats').onclick = () => { agendarAvisos('teste-' + id(), [{ quando: new Date(Date.now() + 60e3).toISOString(), texto: `👋 Oi${E.perfil.nome ? ', ' + E.perfil.nome : ''}! Este é o teste dos avisos do *Meu Painel*. Daqui pra frente seus lembretes chegam por aqui.\n_(Este número só envia avisos.)_` }]); avisar('Teste agendado: chega em 1 a 2 minutos'); };
+  }
   $('#fCartoes').onsubmit = (e) => {
     e.preventDefault(); const f = e.target;
     c.cartoes = f.cartoes.value.split('\n').map((s) => s.trim().replace(/^cart[ãa]o\s+/i, '')).filter(Boolean).map((s) => { const m = /^(.*?)[\s\-–—:;,]+(?:vence\s*)?(?:dia\s*)?(\d{1,2})$/i.exec(s); return { nome: (m ? m[1] : s).trim(), dia: m ? Math.min(31, Math.max(1, +m[2])) : 10 }; });
@@ -766,4 +1023,5 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
 }
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== aba + (sub[aba] ? '/' + sub[aba] : '')) ir(h); });
-carregar().then(() => { ir(location.hash.slice(1) || 'inicio'); lembrarCopia(); });
+carregar().then(() => { ir(location.hash.slice(1) || 'inicio'); lembrarCopia(); sincronizarAvisos(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizarAvisos(); });

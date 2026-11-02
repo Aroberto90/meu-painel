@@ -1,15 +1,20 @@
-// Meu Painel — dados. Tudo fica no próprio celular (IndexedDB); nada vai para servidor.
+// Meu Painel — dados. Tudo fica no próprio celular (IndexedDB).
+// Só os lembretes que ela pedir no WhatsApp saem do celular (data, hora e texto), para uma base na nuvem que o Painel da Vida lê e envia.
 // As regras de dinheiro (cartão → fatura, parcelas, contas parceladas) são as mesmas do Painel da Vida.
 const BANCO = 'meu-painel', LOJA = 'estado', CHAVE = 'principal';
+// base dos lembretes (Supabase). A chave é a pública: ela só deixa criar lembrete e ver/apagar os do próprio celular.
+const NUVEM = { url: '', chave: '' };
 const CATEGORIAS = ['Alimentação', 'Mercado', 'Transporte', 'Casa', 'Saúde', 'Beleza', 'Esporte', 'Lazer', 'Educação', 'Vestuário', 'Trabalho', 'Outros'];
 const NOVO = () => ({
   versao: 1, criado: new Date().toISOString(),
   perfil: { nome: '' },
-  config: { categorias: CATEGORIAS, cartoes: [], meta_km_semana: 15, meta_treinos_semana: 3, meta_paginas_dia: 15, secoes: ['principais', 'economia', 'esporte'] },
+  config: { categorias: CATEGORIAS, cartoes: [], meta_km_semana: 15, meta_treinos_semana: 3, meta_paginas_dia: 15, meta_horas_estudo: 10, whatsapp: '', avisos_whats: false },
   compromissos: [], gastos: [], parcelamentos: [], faturasPagas: [],
   livros: [], leituras: [],
   corridas: [], plano: null,
   fichas: [], treinos: [], corpo: [],
+  materias: [], sessoes: [], provas: [], revisoes: [],
+  segredo: '', avisos: {}, filaAvisos: [], // avisos: idDoItem -> [ids dos lembretes na nuvem]
 });
 
 // ---------- guardar/abrir (um objeto só, salvo inteiro; pequeno mesmo com anos de uso) ----------
@@ -107,7 +112,11 @@ function contaAPagar({ valor, descricao, vencimento, categoria }) {
   if (!(g.valor > 0)) throw new Error('Valor inválido.');
   E.gastos.push(g); salvar(); return g;
 }
-const pagar = (gid) => { const g = E.gastos.find((x) => x.id === gid); if (g) { g.pago = 1; g.data = hoje(); salvar(); } };
+const pagar = (gid) => { const g = E.gastos.find((x) => x.id === gid); if (g) { g.pago = 1; g.data = hoje(); cancelarAvisos(g.id); salvar(); } };
+// aviso de conta: às 9h do dia do vencimento
+const dinheiroTxt = (v) => (+v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const avisarConta = (g) => agendarAvisos(g.id, [{ quando: instante(g.vencimento, '09:00'), texto: `🧾 Vence hoje: *${g.descricao || g.categoria}* — ${dinheiroTxt(g.valor)}` }]);
+const avisarParcelamento = (p) => { for (const g of E.gastos.filter((x) => x.parcelamento === p.id && !x.pago)) avisarConta(g); };
 function faturas() {
   const pagas = new Set(E.faturasPagas), mapa = {};
   for (const g of E.gastos.filter((x) => x.fatura && /^Cartão /.test(x.forma || '')).sort((a, b) => (a.fatura + a.data).localeCompare(b.fatura + b.data))) {
@@ -146,21 +155,23 @@ function importarContas(itens) {
     if (!descricao || !(valor > 0)) continue;
     const total = Math.max(1, Math.round(+it.total || 1)), parcela = Math.max(1, Math.min(total, Math.round(+it.parcela || 1)));
     if (E.parcelamentos.some((p) => sem(p.descricao) === sem(descricao) && p.valor === valor && p.total === total)) { repetidos.push(descricao); continue; }
-    const p = { id: id(), descricao, valor, parcela_ini: parcela, total, categoria: it.categoria || categoriaDe(descricao), forma: it.forma || 'boleto', venc_ini: /^\d{4}-\d{2}-\d{2}$/.test(it.vencimento || '') ? it.vencimento : null };
-    E.parcelamentos.push(p); gerarParcelas(p); feitos++;
+    const p = { id: id(), descricao, valor, parcela_ini: parcela, total, categoria: it.categoria || categoriaDe(descricao), forma: it.forma || 'boleto', venc_ini: /^\d{4}-\d{2}-\d{2}$/.test(it.vencimento || '') ? it.vencimento : null, whats: !!it.whats };
+    E.parcelamentos.push(p); gerarParcelas(p); if (p.whats) avisarParcelamento(p); feitos++;
   }
   salvar();
   return { feitos, repetidos };
 }
 function vencimentoParcelamento(pid, venc) {
   const p = E.parcelamentos.find((x) => x.id === pid);
+  E.gastos.filter((g) => g.parcelamento === pid && !g.pago).forEach((g) => cancelarAvisos(g.id));
   E.gastos = E.gastos.filter((g) => !(g.parcelamento === pid && !g.pago));
   const pagas = Math.max(0, ...E.gastos.filter((g) => g.parcelamento === pid && g.pago).map((g) => g.parcela));
   const ini = pagas ? pagas + 1 : p.parcela_ini;
   p.venc_ini = somaMeses(venc, p.parcela_ini - ini);
-  gerarParcelas(p); salvar();
+  gerarParcelas(p); if (p.whats) avisarParcelamento(p); salvar();
 }
 function apagarParcelamento(pid) {
+  E.gastos.filter((g) => g.parcelamento === pid && !g.pago).forEach((g) => cancelarAvisos(g.id));
   E.gastos = E.gastos.filter((g) => !(g.parcelamento === pid && !g.pago));
   E.parcelamentos = E.parcelamentos.filter((p) => p.id !== pid); salvar();
 }
@@ -284,6 +295,89 @@ function sugerirCarga(nomeEx, cargaAtual) {
   const ok = vezes.every((t) => { const e = t.exercicios.find((x) => sem(x.nome) === sem(nomeEx)); return e.series.length && e.series.every((s) => s.feito && +s.carga >= +cargaAtual); });
   return ok && +cargaAtual > 0 ? Math.round((+cargaAtual * (+cargaAtual < 20 ? 1.1 : 1.05)) * 2) / 2 : null;
 }
+
+// ---------- Estudos ----------
+const CORES_MATERIA = ['#ff5a5f', '#3b82f6', '#12b886', '#8b5cf6', '#f59f00', '#ec4899', '#0ea5e9', '#84cc16'];
+const materia = (mid) => E.materias.find((m) => m.id === mid) || { nome: '—', cor: '#999' };
+function estudosResumo() {
+  const ini = inicioSemana(), h = (l) => Math.round((l.reduce((s, x) => s + x.min, 0) / 60) * 10) / 10;
+  const semana = E.sessoes.filter((s) => s.data >= ini), mes = E.sessoes.filter((s) => s.data.slice(0, 7) === hoje().slice(0, 7));
+  const semanas = []; for (let k = 7; k >= 0; k--) { const a = somaDias(ini, -7 * k), b = somaDias(a, 6); semanas.push({ ini: a, h: h(E.sessoes.filter((s) => s.data >= a && s.data <= b)) }); }
+  const porMateria = E.materias.map((m) => {
+    const ss = E.sessoes.filter((s) => s.materiaId === m.id), notas = E.provas.filter((p) => p.materiaId === m.id && p.nota != null && p.nota !== '');
+    const pesos = notas.reduce((s, p) => s + (+p.peso || 1), 0);
+    const media = pesos ? notas.reduce((s, p) => s + (+p.nota / (+p.notaMax || 10)) * 10 * (+p.peso || 1), 0) / pesos : null;
+    return { ...m, semana: h(ss.filter((s) => s.data >= ini)), mes: h(ss.filter((s) => s.data.slice(0, 7) === hoje().slice(0, 7))), total: h(ss), media, provas: notas.length };
+  });
+  const datas = new Set(E.sessoes.map((s) => s.data));
+  let seq = 0, d = datas.has(hoje()) ? hoje() : somaDias(hoje(), -1);
+  while (datas.has(d)) { seq++; d = somaDias(d, -1); }
+  return { semanaH: h(semana), mesH: h(mes), meta: E.config.meta_horas_estudo, semanas, porMateria, sequencia: seq, hojeMin: E.sessoes.filter((s) => s.data === hoje()).reduce((s, x) => s + x.min, 0),
+    revisoesHoje: E.revisoes.filter((r) => !r.feita && r.data <= hoje()).sort((a, b) => a.data.localeCompare(b.data)),
+    proximas: E.provas.filter((p) => p.data >= hoje() && (p.nota == null || p.nota === '')).sort((a, b) => (a.data + (a.hora || '')).localeCompare(b.data + (b.hora || ''))),
+    sessoes: [...E.sessoes].sort((a, b) => (b.data + b.id).localeCompare(a.data + a.id)) };
+}
+// estudou um assunto: revisões em 1, 7 e 30 dias (curva do esquecimento)
+const DIAS_REVISAO = [1, 7, 30];
+function registrarEstudo({ materiaId, min, assunto, data, revisar }) {
+  const s = { id: id(), materiaId, min: Math.max(1, Math.round(+min)), assunto: String(assunto || '').trim(), data: data || hoje() };
+  E.sessoes.push(s);
+  const novas = [];
+  if (revisar && s.assunto) for (const dd of DIAS_REVISAO) novas.push({ id: id(), materiaId, assunto: s.assunto, data: somaDias(s.data, dd), dias: dd, feita: false, sessao: s.id });
+  E.revisoes.push(...novas); salvar();
+  return { sessao: s, revisoes: novas };
+}
+
+// ---------- Avisos no WhatsApp (enviados pelo número do Painel da Vida) ----------
+// cada item (compromisso, conta, prova, revisão) guarda os ids dos lembretes que criou; mudou ou apagou = troca/apaga os lembretes
+const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => ((Math.random() * 16) | 0).toString(16)));
+const avisosLigados = () => !!(E.config.avisos_whats && /^\d{10,13}$/.test(E.config.whatsapp) && NUVEM.url);
+// "AAAA-MM-DD" + "HH:MM" no horário do celular → instante (ISO)
+const instante = (data, hora = '09:00') => new Date(`${data}T${hora}:00`).toISOString();
+function agendarAvisos(itemId, lista) {
+  cancelarAvisos(itemId);
+  if (!avisosLigados()) return;
+  if (!E.segredo) E.segredo = uuid().replace(/-/g, '') + uuid().replace(/-/g, '');
+  const agoraIso = new Date().toISOString(), ids = [];
+  for (const a of lista) {
+    if (!a || a.quando <= agoraIso) continue; // horário que já passou não vira lembrete
+    const aid = uuid(); ids.push(aid);
+    E.filaAvisos.push({ op: 'criar', id: aid, quando: a.quando, texto: String(a.texto).slice(0, 580) });
+  }
+  if (ids.length) E.avisos[itemId] = ids;
+  salvar(); sincronizarAvisos();
+}
+function cancelarAvisos(itemId) {
+  const ids = E.avisos[itemId];
+  if (!ids) return;
+  for (const aid of ids) {
+    // ainda não subiu: é só tirar da fila
+    const i = E.filaAvisos.findIndex((f) => f.op === 'criar' && f.id === aid);
+    if (i >= 0) E.filaAvisos.splice(i, 1); else E.filaAvisos.push({ op: 'apagar', id: aid });
+  }
+  delete E.avisos[itemId]; salvar(); sincronizarAvisos();
+}
+const temAviso = (itemId) => !!(E.avisos[itemId] && E.avisos[itemId].length);
+// manda a fila para a nuvem quando tiver internet (sem internet, fica guardada e vai depois)
+let sincronizando = false;
+async function sincronizarAvisos() {
+  if (sincronizando || !NUVEM.url || !E.filaAvisos.length || !navigator.onLine) return;
+  sincronizando = true;
+  const cab = { apikey: NUVEM.chave, authorization: 'Bearer ' + NUVEM.chave, 'content-type': 'application/json', 'x-segredo': E.segredo, prefer: 'return=minimal' };
+  try {
+    while (E.filaAvisos.length) {
+      const f = E.filaAvisos[0];
+      const r = f.op === 'criar'
+        ? await fetch(`${NUVEM.url}/rest/v1/lembretes`, { method: 'POST', headers: cab, body: JSON.stringify({ id: f.id, segredo: E.segredo, telefone: E.config.whatsapp, quando: f.quando, texto: f.texto }) })
+        : await fetch(`${NUVEM.url}/rest/v1/lembretes?id=eq.${f.id}`, { method: 'DELETE', headers: cab });
+      // 409 = já estava lá (mandou duas vezes): tudo bem
+      if (!r.ok && r.status !== 409) throw new Error('nuvem ' + r.status);
+      E.filaAvisos.shift(); salvar();
+    }
+  } catch (e) { console.warn('Avisos:', e.message); }
+  finally { sincronizando = false; }
+}
+window.addEventListener('online', () => sincronizarAvisos());
 
 // ---------- backup ----------
 const exportar = () => JSON.stringify({ app: 'meu-painel', exportado: new Date().toISOString(), ...E }, null, 1);
