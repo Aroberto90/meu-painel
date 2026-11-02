@@ -241,7 +241,7 @@ function treinoCorrida() {
     </section>
     <section class="cartao"><header><h2>Km por semana</h2></header>${grafBarras(semanas, { meta: C.meta, formato: (v) => km1(v) })}</section>
     <section class="cartao"><header><h2>${ic('tenis')} Corridas</h2></header>
-      ${C.ultimas.length ? C.ultimas.slice(0, 30).map((c) => `<div class="linha clicavel" data-corrida="${c.id}"><div class="tit"><span>${km1(c.km)} km · ${fmtTempo(c.seg)}</span><small>${diaCurto(c.data)} · ${fmtPace(pace(c.seg, c.km))}${c.tipo ? ' · ' + esc(c.tipo) : ''}${c.trajeto ? ' · GPS' : ''}</small></div>${c.sensacao ? `<span>${['😫', '😕', '🙂', '😄', '🔥'][c.sensacao - 1]}</span>` : ''}</div>`).join('')
+      ${C.ultimas.length ? C.ultimas.slice(0, 30).map((c) => `<div class="linha clicavel" data-corrida="${c.id}"><div class="tit"><span>${km1(c.km)} km · ${fmtTempo(c.seg)}</span><small>${diaCurto(c.data)} · ${fmtPace(pace(c.seg, c.km))}${c.tipo ? ' · ' + esc(c.tipo) : ''}${c.stravaId ? ' · Strava' : c.trajeto ? ' · GPS' : ''}</small></div>${c.sensacao ? `<span>${['😫', '😕', '🙂', '😄', '🔥'][c.sensacao - 1]}</span>` : ''}</div>`).join('')
         : '<p class="vazio">Nenhuma corrida ainda. Toque em <b>Correr agora</b> (GPS) ou <b>Registrar</b> (do relógio/Strava).</p>'}
     </section></div>`;
   $('#novaCorrida').onclick = () => formCorrida();
@@ -250,7 +250,7 @@ function treinoCorrida() {
   if ($('#planoFeito')) $('#planoFeito').onclick = () => { E.plano.feitos.push(hoje()); salvar(); avisar('Treino do plano marcado ✓'); render(); };
   $$('[data-corrida]').forEach((r) => (r.onclick = () => verCorrida(E.corridas.find((c) => c.id === r.dataset.corrida))));
 }
-const TIPOS_CORRIDA = ['leve', 'longão', 'intervalado', 'ritmo', 'prova', 'esteira'];
+const TIPOS_CORRIDA = ['leve', 'longão', 'intervalado', 'ritmo', 'prova', 'esteira', 'trilha'];
 function formCorrida(c = {}) {
   const f = modal(`<h2>${c.id ? 'Editar corrida' : 'Registrar corrida'}</h2>
     <div class="dupla"><label>Distância (km)<input name="km" required inputmode="decimal" value="${c.km ? String(c.km).replace('.', ',') : ''}" placeholder="5,0"></label><label>Tempo<input name="tempo" required inputmode="numeric" placeholder="32:15" value="${c.seg ? fmtTempo(c.seg) : ''}"></label></div>
@@ -277,6 +277,7 @@ function verCorrida(c) {
     <div class="kpis"><div class="kpi"><small>Tempo</small><b>${fmtTempo(c.seg)}</b></div><div class="kpi"><small>Ritmo</small><b style="font-size:16px">${fmtPace(pace(c.seg, c.km))}</b></div><div class="kpi"><small>Tipo</small><b style="font-size:15px">${esc(c.tipo || '—')}</b></div></div>
     ${desenharRota(c.trajeto)}
     ${c.splits && c.splits.length ? `<div><small style="font-weight:700">Parciais por km</small>${c.splits.map((s, i) => `<div class="cat"><span>km ${i + 1}</span><div class="barra"><div style="width:${(Math.min(...c.splits) / s) * 100}%"></div></div><span>${fmtTempo(s)}</span></div>`).join('')}</div>` : ''}
+    ${c.subida || c.fc ? `<small>${c.subida ? `subida ${Math.round(c.subida)} m` : ''}${c.subida && c.fc ? ' · ' : ''}${c.fc ? `FC média ${c.fc} bpm` : ''}${c.stravaId ? ' · do Strava' : ''}</small>` : ''}
     ${c.obs ? `<p style="margin:0">${esc(c.obs)}</p>` : ''}
     <div class="dupla"><button type="button" id="editarC">${ic('lapis')} Editar</button><button value="cancelar" class="primario">Fechar</button></div>`, () => {}, { semBotoes: true });
   $('#editarC').onclick = () => { $('#modal').close(); setTimeout(() => formCorrida(c), 50); };
@@ -968,6 +969,7 @@ async function telaAjustes() {
         <div class="dupla"><button class="primario">Salvar</button><button type="button" id="testeWhats" ${avisosLigados() ? '' : 'disabled'}>Enviar teste</button></div></form>
       ${E.filaAvisos.length ? `<small style="display:block;margin-top:8px">${E.filaAvisos.length} aviso${E.filaAvisos.length > 1 ? 's' : ''} esperando internet para subir.</small>` : ''}
       <small style="display:block;margin-top:8px">Só sai do celular o lembrete (dia, hora e texto). O resto dos seus dados continua só aqui.</small></section>` : ''}
+    ${NUVEM.url ? `<section class="cartao c6" id="cartaoStrava"><header><h2>${ic('tenis')} Strava</h2><span id="stEtiqueta"></span></header><div id="stCorpo"><p class="vazio">Conferindo…</p></div></section>` : ''}
     <section class="cartao c6"><header><h2>${ic('cartao')} Cartões</h2></header><form class="form" id="fCartoes">
       <label>Um por linha, com o dia do vencimento (ex.: <b>Nubank - dia 10</b>)<textarea name="cartoes" rows="4">${esc(c.cartoes.map((x) => `${x.nome} - dia ${x.dia}`).join('\n'))}</textarea></label>
       <label>Categorias (uma por linha)<textarea name="cats" rows="5">${esc(c.categorias.join('\n'))}</textarea></label>
@@ -981,6 +983,7 @@ async function telaAjustes() {
   </div>`;
   ligarComuns();
   $('#fMetas').onsubmit = (e) => { e.preventDefault(); const f = e.target; E.perfil.nome = f.nome.value.trim(); Object.assign(c, { meta_km_semana: valorDe(f.km.value) || 15, meta_treinos_semana: +f.treinos.value || 3, meta_paginas_dia: +f.pag.value || 15, meta_horas_estudo: valorDe(f.horas.value) || 10 }); salvar(); avisar('Salvo'); render(); };
+  if ($('#cartaoStrava')) cartaoStrava();
   if ($('#fWhats')) {
     $('#fWhats').onsubmit = (e) => {
       e.preventDefault(); const f = e.target;
@@ -1006,6 +1009,52 @@ async function telaAjustes() {
   $('#apagarTudo').onclick = () => { if (confirm('Apagar TODOS os dados deste celular? Faça uma cópia antes.') && confirm('Tem certeza? Não dá para desfazer.')) { E = NOVO(); salvar(); avisar('Tudo apagado'); ir('inicio'); } };
 }
 
+// ---------- Strava ----------
+// o card pergunta à nuvem como está a conexão e mostra o passo certo: configurar → conectar → conectado
+async function cartaoStrava() {
+  const corpo = $('#stCorpo'), etq = $('#stEtiqueta');
+  let s;
+  try { s = await strava('status'); } catch (e) { corpo.innerHTML = `<p class="vazio">Sem internet agora. ${esc(e.message)}</p>`; return; }
+  E.strava = { ...(E.strava || {}), conectado: s.conectado, atleta: s.atleta }; salvar();
+  if (!$('#stCorpo')) return;
+  if (s.conectado) {
+    const st = E.strava;
+    etq.innerHTML = '<span class="etiqueta verde">conectado</span>';
+    corpo.innerHTML = `<p style="margin-top:0">Conectado como <b>${esc((s.atleta && s.atleta.nome) || 'você')}</b>. As corridas do Strava entram sozinhas quando você abre o app (as últimas de 90 dias na primeira vez). Corrida marcada também pelo GPS do app não duplica.</p>
+      ${st.ultimaBusca ? `<small style="display:block;margin-bottom:10px">Última busca: ${new Date(st.ultimaBusca).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</small>` : ''}
+      <div class="dupla"><button class="primario" id="stImportar">${ic('baixar')} Buscar agora</button><button id="stSair" style="color:var(--vermelho)">Desconectar</button></div>`;
+    $('#stImportar').onclick = tentar(async () => { const b = $('#stImportar'); b.disabled = true; b.textContent = 'Buscando…'; const r = await importarStrava(); avisar(r.novas ? `${r.novas} corrida${r.novas > 1 ? 's' : ''} do Strava 🏃‍♀️` : 'Nenhuma corrida nova'); render(); });
+    $('#stSair').onclick = tentar(async () => { if (!confirm('Desconectar o Strava? As corridas que já vieram continuam aqui.')) return; await strava('desconectar'); E.strava = { ...E.strava, conectado: false }; salvar(); render(); });
+    return;
+  }
+  const passos = `<ol class="passos" style="font-size:14px;margin-bottom:12px">
+      <li>No Safari, abra <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener">strava.com/settings/api</a> e entre com a <b>sua</b> conta do Strava.</li>
+      <li>Crie o aplicativo: <b>Nome</b> Meu Painel · <b>Categoria</b> Importador de dados · <b>Site</b> aroberto90.github.io/meu-painel · <b>Domínio de retorno de chamada de autorização</b>: <span style="user-select:all;font-weight:700;word-break:break-all">uphefleffjtbyuycnpyp.supabase.co</span> (toque para copiar).</li>
+      <li>Copie o <b>ID do cliente</b> e o <b>Segredo do cliente</b> e cole aqui embaixo.</li></ol>`;
+  if (!s.configurado) {
+    etq.innerHTML = '';
+    corpo.innerHTML = `<p style="margin-top:0;font-size:14px">Ligue o Strava uma vez e suas corridas (distância, tempo, ritmo e percurso) entram sozinhas aqui.</p>${passos}
+      <form class="form" id="fStrava"><div class="dupla"><label>ID do cliente<input name="id" inputmode="numeric" required placeholder="123456"></label><label>Segredo do cliente<input name="segredo" required autocomplete="off" placeholder="40 letras e números"></label></div><button class="primario">Salvar e continuar</button></form>`;
+  } else {
+    etq.innerHTML = '<span class="etiqueta">falta conectar</span>';
+    corpo.innerHTML = `<p style="margin-top:0;font-size:14px">Quase lá! Toque em <b>Conectar</b>, entre no Strava e autorize. Depois volte para o app.</p>
+      <a class="botao primario" href="${esc(linkConectarStrava())}" target="_blank" rel="noopener" style="width:100%">${ic('tenis')} Conectar com o Strava</a>
+      <details style="margin-top:12px"><summary class="suave" style="font-size:13px">Trocar o ID e o segredo do app</summary>${passos}
+      <form class="form" id="fStrava"><div class="dupla"><label>ID do cliente<input name="id" inputmode="numeric" required value="${esc(s.client_id || '')}"></label><label>Segredo do cliente<input name="segredo" required autocomplete="off"></label></div><button>Salvar</button></form></details>`;
+  }
+  if ($('#fStrava')) $('#fStrava').onsubmit = tentar(async (e) => { e.preventDefault(); await strava('configurar', { client_id: e.target.id.value, client_secret: e.target.segredo.value }); avisar('Salvo. Agora toque em Conectar.'); render(); });
+}
+// ao abrir o app (e a cada 30 min com ele aberto): busca corridas novas no Strava, sem incomodar se der erro
+async function sincronizarStrava() {
+  const st = E.strava;
+  if (!st || !st.conectado || !navigator.onLine || !NUVEM.url) return;
+  if (st.ultimaBusca && Date.now() - new Date(st.ultimaBusca) < 30 * 60e3) return;
+  try {
+    const r = await importarStrava();
+    if (r.novas) { avisar(`${r.novas} corrida${r.novas > 1 ? 's' : ''} nova${r.novas > 1 ? 's' : ''} do Strava 🏃‍♀️`); if (['inicio', 'treino'].includes(aba)) render(); }
+  } catch (e) { st.erro = e.message; st.ultimaBusca = new Date().toISOString(); salvar(); }
+}
+
 // ---------- início ----------
 function relogio() { $('#relogio').textContent = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
 setInterval(relogio, 15000); relogio();
@@ -1023,5 +1072,5 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
 }
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== aba + (sub[aba] ? '/' + sub[aba] : '')) ir(h); });
-carregar().then(() => { ir(location.hash.slice(1) || 'inicio'); lembrarCopia(); sincronizarAvisos(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizarAvisos(); });
+carregar().then(() => { ir(location.hash.slice(1) || 'inicio'); lembrarCopia(); sincronizarAvisos(); sincronizarStrava(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { sincronizarAvisos(); sincronizarStrava(); } });

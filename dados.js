@@ -15,6 +15,7 @@ const NOVO = () => ({
   fichas: [], treinos: [], corpo: [],
   materias: [], sessoes: [], provas: [], revisoes: [],
   segredo: '', avisos: {}, filaAvisos: [], // avisos: idDoItem -> [ids dos lembretes na nuvem]
+  strava: null, // { conectado, atleta, ultimoInicio, ultimaBusca }
 });
 
 // ---------- guardar/abrir (um objeto só, salvo inteiro; pequeno mesmo com anos de uso) ----------
@@ -337,7 +338,7 @@ const instante = (data, hora = '09:00') => new Date(`${data}T${hora}:00`).toISOS
 function agendarAvisos(itemId, lista) {
   cancelarAvisos(itemId);
   if (!avisosLigados()) return;
-  if (!E.segredo) E.segredo = uuid().replace(/-/g, '') + uuid().replace(/-/g, '');
+  garantirSegredo();
   const agoraIso = new Date().toISOString(), ids = [];
   for (const a of lista) {
     if (!a || a.quando <= agoraIso) continue; // horário que já passou não vira lembrete
@@ -378,6 +379,52 @@ async function sincronizarAvisos() {
   finally { sincronizando = false; }
 }
 window.addEventListener('online', () => sincronizarAvisos());
+
+// ---------- Strava (pela função "strava" na nuvem; a chave secreta do app do Strava fica lá) ----------
+const garantirSegredo = () => { if (!E.segredo) { E.segredo = uuid().replace(/-/g, '') + uuid().replace(/-/g, ''); salvar(); } return E.segredo; };
+const urlStrava = () => NUVEM.url + '/functions/v1/strava';
+async function strava(acao, extra = {}) {
+  const r = await fetch(urlStrava(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ acao, segredo: garantirSegredo(), ...extra }) });
+  const j = await r.json().catch(() => ({ erro: 'Resposta inválida do Strava.' }));
+  if (!r.ok) throw new Error(j.erro || 'Strava: erro ' + r.status);
+  return j;
+}
+const linkConectarStrava = () => `${urlStrava()}?acao=conectar&segredo=${encodeURIComponent(garantirSegredo())}`;
+// percurso resumido do Strava (formato "polyline" do Google) → [[lat, lon], ...]
+function decodificarLinha(s) {
+  const pts = []; let i = 0, lat = 0, lon = 0;
+  while (i < s.length) {
+    for (const k of [0, 1]) {
+      let res = 0, sh = 0, b;
+      do { b = s.charCodeAt(i++) - 63; res |= (b & 31) << sh; sh += 5; } while (b >= 32);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (k === 0) lat += d; else lon += d;
+    }
+    pts.push([lat / 1e5, lon / 1e5]);
+  }
+  return pts;
+}
+const TIPO_STRAVA = { 1: 'prova', 2: 'longão', 3: 'intervalado' };
+// traz as corridas novas; na primeira vez, os últimos 90 dias
+async function importarStrava({ tudo = false } = {}) {
+  const st = E.strava || (E.strava = {});
+  const depois = tudo || !st.ultimoInicio ? Math.floor(Date.now() / 1000) - 90 * 86400 : Math.floor(new Date(st.ultimoInicio).getTime() / 1000) - 3600;
+  const { corridas } = await strava('atividades', { depois });
+  let novas = 0, juntas = 0;
+  for (const a of corridas) {
+    if (!st.ultimoInicio || a.inicio > st.ultimoInicio) st.ultimoInicio = a.inicio;
+    if (E.corridas.some((c) => c.stravaId === a.id)) continue;
+    // a mesma corrida marcada também pelo GPS do app (mesmo dia, distância parecida): junta, não duplica
+    const gemea = E.corridas.find((c) => !c.stravaId && c.data === a.data && Math.abs(c.km - a.km) <= Math.max(0.3, a.km * 0.08));
+    if (gemea) { gemea.stravaId = a.id; if (!gemea.trajeto && a.linha) gemea.trajeto = decodificarLinha(a.linha); juntas++; continue; }
+    E.corridas.push({ id: id(), stravaId: a.id, data: a.data, km: a.km, seg: a.seg, sensacao: 3, obs: a.nome || '',
+      tipo: TIPO_STRAVA[a.treino] || (a.tipo === 'TrailRun' ? 'trilha' : a.tipo === 'VirtualRun' ? 'esteira' : 'leve'),
+      trajeto: a.linha ? decodificarLinha(a.linha) : null, subida: a.subida || null, fc: a.fc ? Math.round(a.fc) : null });
+    novas++;
+  }
+  st.ultimaBusca = new Date().toISOString(); st.erro = ''; salvar();
+  return { novas, juntas };
+}
 
 // ---------- backup ----------
 const exportar = () => JSON.stringify({ app: 'meu-painel', exportado: new Date().toISOString(), ...E }, null, 1);
