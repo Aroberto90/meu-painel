@@ -757,6 +757,13 @@ function lembrarCopia() {
   const dias = E.ultimaCopia ? (Date.now() - new Date(E.ultimaCopia)) / 864e5 : (Date.now() - new Date(E.criado)) / 864e5;
   if (dias > 30 && localStorage.getItem('lembrete-copia') !== hoje()) { try { localStorage.setItem('lembrete-copia', hoje()); } catch {} setTimeout(() => avisar('Faz tempo sem cópia de segurança: Mais › Ajustes › Salvar cópia'), 1500); }
 }
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  // versão nova publicada: entra sozinha, menos no meio de corrida/treino (recarregar cortaria o GPS ou o treino)
+  const tinhaVersao = !!navigator.serviceWorker.controller;
+  let recarregou = false;
+  const trocar = () => { if (recarregou) return; if (!$('#tela-cheia').hidden || $('#modal').open) return setTimeout(trocar, 5000); recarregou = true; location.reload(); };
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (tinhaVersao) trocar(); });
+  navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
+}
 window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h && h !== aba + (sub[aba] ? '/' + sub[aba] : '')) ir(h); });
 carregar().then(() => { ir(location.hash.slice(1) || 'inicio'); lembrarCopia(); });
