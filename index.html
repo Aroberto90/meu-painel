@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Meu Painel</title>
+<meta name="description" content="Corrida, academia, agenda, gastos, contas, leitura e notícias — tudo no seu celular.">
+<meta name="theme-color" content="#ff5a5f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Meu Painel">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icones/icone-180.png">
+<link rel="icon" type="image/png" href="icones/icone-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header class="barra-topo"><div class="marca"><span class="selo"></span><b>Meu Painel</b></div><span id="relogio"></span></header>
+<main id="conteudo"></main>
+<nav id="abas" aria-label="Seções">
+  <a data-aba="inicio"><i data-ic="casa"></i><span>Início</span></a>
+  <a data-aba="treino"><i data-ic="tenis"></i><span>Treino</span></a>
+  <a data-aba="dinheiro"><i data-ic="carteira"></i><span>Dinheiro</span></a>
+  <a data-aba="agenda"><i data-ic="agenda"></i><span>Agenda</span></a>
+  <a data-aba="mais"><i data-ic="grade"></i><span>Mais</span></a>
+</nav>
+<div id="tela-cheia" hidden></div>
+<div id="aviso" class="toast" role="status"></div>
+<dialog id="modal"><form method="dialog" id="modalForm"></form></dialog>
+<script src="dados.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
