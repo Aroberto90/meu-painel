@@ -3,7 +3,7 @@
 // As regras de dinheiro (cartão → fatura, parcelas, contas parceladas) são as mesmas do Painel da Vida.
 const BANCO = 'meu-painel', LOJA = 'estado', CHAVE = 'principal';
 // base dos lembretes (Supabase). A chave é a pública: ela só deixa criar lembrete e ver/apagar os do próprio celular.
-const NUVEM = { url: '', chave: '' };
+const NUVEM = { url: 'https://uphefleffjtbyuycnpyp.supabase.co', chave: 'sb_publishable_oQHSGI0AAyzRB_zNsy7fxA_9qBNE3hj' };
 const CATEGORIAS = ['Alimentação', 'Mercado', 'Transporte', 'Casa', 'Saúde', 'Beleza', 'Esporte', 'Lazer', 'Educação', 'Vestuário', 'Trabalho', 'Outros'];
 const NOVO = () => ({
   versao: 1, criado: new Date().toISOString(),
@@ -363,7 +363,7 @@ let sincronizando = false;
 async function sincronizarAvisos() {
   if (sincronizando || !NUVEM.url || !E.filaAvisos.length || !navigator.onLine) return;
   sincronizando = true;
-  const cab = { apikey: NUVEM.chave, authorization: 'Bearer ' + NUVEM.chave, 'content-type': 'application/json', 'x-segredo': E.segredo, prefer: 'return=minimal' };
+  const cab = { apikey: NUVEM.chave, 'content-type': 'application/json', 'x-segredo': E.segredo, prefer: 'return=minimal' };
   try {
     while (E.filaAvisos.length) {
       const f = E.filaAvisos[0];
