@@ -158,3 +158,23 @@ table { width: 100%; border-collapse: collapse; font-size: 14px; }
 th, td { padding: 8px 6px; text-align: left; border-top: 1px solid var(--linha); white-space: nowrap; }
 th { font-size: 11px; color: var(--suave); border-top: 0; text-transform: uppercase; letter-spacing: .04em; }
 td.num, th.num { text-align: right; }
+
+/* ---------- metas ---------- */
+#abas a span { white-space: nowrap; }
+@media (max-width: 400px) { #abas a { font-size: 10px; } #abas a .ic { width: 22px; height: 22px; } }
+.meta-periodo { display: flex; align-items: center; justify-content: space-between; margin: 0 0 12px; font-size: 16px; }
+.meta-periodo button { border: 0; background: none; box-shadow: none; padding: 8px 12px; color: var(--acento); }
+.meta-prox .ic { transform: scaleX(-1); }
+.meta-cartao { grid-column: span 12; }
+.meta-cartao > header { margin-bottom: 10px; align-items: flex-start; }
+.meta-titulo { all: unset; cursor: pointer; font-size: 16px; line-height: 1.25; min-width: 0; overflow-wrap: anywhere; }
+.meta-txt { margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
+.meta-ideias { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; justify-content: center; }
+#trazerMetas { margin-top: 6px; }
+.meta-lancs { display: grid; gap: 4px; max-height: 42vh; overflow: auto; }
+.meta-lanc { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--linha); }
+.meta-lanc span { display: grid; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
+.meta-lanc button { border: 0; background: none; box-shadow: none; padding: 6px; color: var(--suave); }
+.meta-resumo { all: unset; display: grid; gap: 6px; width: 100%; cursor: pointer; padding: 8px 0; box-sizing: border-box; }
+.meta-resumo span { display: flex; justify-content: space-between; gap: 10px; }
+#metaNumero[hidden], #metaOutra[hidden] { display: none; }

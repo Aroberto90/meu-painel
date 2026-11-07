@@ -14,6 +14,7 @@ const NOVO = () => ({
   corridas: [], plano: null,
   fichas: [], treinos: [], corpo: [],
   materias: [], sessoes: [], provas: [], revisoes: [],
+  metas: [], // { id, periodo: 'mes'|'ano', ref: 'AAAA-MM'|'AAAA', titulo, tipo: 'valor'|'feito', alvo, unidade, lancamentos: [{ id, data, valor, obs }], feita, feitaEm }
   segredo: '', avisos: {}, filaAvisos: [], // avisos: idDoItem -> [ids dos lembretes na nuvem]
   strava: null, // { conectado, atleta, ultimoInicio, ultimaBusca }
 });
@@ -432,4 +433,52 @@ function importar(txt) {
   const x = JSON.parse(txt);
   if (x.app !== 'meu-painel' || !x.config) throw new Error('Este arquivo não é uma cópia do Meu Painel.');
   delete x.app; delete x.exportado; E = completar(x); salvar(); return E;
+}
+
+// ---------- metas do mês e do ano ----------
+const numeroMeta = (v) => { const s = String(v ?? '').trim().replace(/\s|R\$/g, ''); return /^-?\d{1,3}(\.\d{3})+$/.test(s) ? +s.replace(/\./g, '') : valorDe(s); };
+const metasDe = (periodo, ref) => E.metas.filter((m) => m.periodo === periodo && m.ref === ref);
+const metaPorId = (mid) => E.metas.find((m) => m.id === mid);
+const valorMeta = (v, unidade) => (unidade === 'R$' ? dinheiroTxt(v) : `${(+v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${unidade ? ' ' + unidade : ''}`);
+function progressoMeta(m, dia = hoje()) {
+  const fim = m.periodo === 'ano' ? m.ref + '-12-31' : somaMeses(m.ref + '-01', 1).slice(0, 8) + '01', ultimo = m.periodo === 'ano' ? fim : somaDias(fim, -1);
+  const inicio = m.periodo === 'ano' ? m.ref + '-01-01' : m.ref + '-01', encerrada = dia > ultimo;
+  if (m.tipo === 'feito') return { atual: m.feita ? 1 : 0, pct: m.feita ? 100 : 0, falta: 0, batida: !!m.feita, encerrada, esperado: null, situacao: '' };
+  const atual = Math.round((m.lancamentos || []).reduce((t, l) => t + l.valor, 0) * 100) / 100, alvo = +m.alvo || 0, pct = alvo ? (atual / alvo) * 100 : 0, batida = alvo > 0 && atual >= alvo;
+  // ritmo: quanto do período já passou, só durante o período
+  let esperado = null, situacao = '';
+  if (dia >= inicio && dia <= ultimo) {
+    const passados = diasEntre(inicio, dia) + 1, total = diasEntre(inicio, ultimo) + 1;
+    esperado = Math.round((alvo * passados / total) * 100) / 100;
+    situacao = batida || atual >= esperado ? 'nomes' : 'atras';
+  }
+  return { atual, pct, falta: Math.max(0, Math.round((alvo - atual) * 100) / 100), batida, encerrada, esperado, situacao };
+}
+function salvarMeta({ id: mid, periodo, ref, titulo, tipo, alvo, unidade }) {
+  const nome = String(titulo || '').trim().slice(0, 80);
+  if (!nome) throw new Error('Escreva o que você quer alcançar.');
+  const feito = tipo === 'feito', v = feito ? 0 : Math.round(numeroMeta(alvo) * 100) / 100;
+  if (!feito && !(v > 0)) throw new Error('Informe quanto você quer alcançar.');
+  if (!feito && !unidade) throw new Error('Escolha a medida.');
+  let m = mid && metaPorId(mid);
+  if (!m) { m = { id: id(), periodo, ref, lancamentos: [], feita: false, feitaEm: '', criado: agora() }; E.metas.push(m); }
+  Object.assign(m, { titulo: nome, tipo: feito ? 'feito' : 'valor', alvo: v, unidade: feito ? '' : unidade });
+  salvar(); return m;
+}
+function lancarMeta(mid, { valor, data, obs }) {
+  const m = metaPorId(mid); if (!m) throw new Error('Meta não encontrada.');
+  const v = Math.round(numeroMeta(valor) * 100) / 100;
+  if (!v || !isFinite(v)) throw new Error('Informe um valor.');
+  const antes = progressoMeta(m).batida;
+  m.lancamentos.push({ id: id(), data: data || hoje(), valor: v, obs: String(obs || '').trim().slice(0, 80) });
+  salvar(); return { bateuAgora: !antes && progressoMeta(m).batida };
+}
+const tirarLancamentoMeta = (mid, lid) => { const m = metaPorId(mid); if (m) { m.lancamentos = m.lancamentos.filter((l) => l.id !== lid); salvar(); } };
+function marcarMetaFeita(mid) { const m = metaPorId(mid); m.feita = !m.feita; m.feitaEm = m.feita ? hoje() : ''; salvar(); return m; }
+const apagarMeta = (mid) => { E.metas = E.metas.filter((m) => m.id !== mid); salvar(); };
+// repete as metas do período anterior, zeradas; o que já existe com o mesmo nome fica como está
+function copiarMetas(periodo, de, para) {
+  const ja = new Set(metasDe(periodo, para).map((m) => sem(m.titulo))); let n = 0;
+  for (const m of metasDe(periodo, de)) if (!ja.has(sem(m.titulo))) { E.metas.push({ id: id(), periodo, ref: para, titulo: m.titulo, tipo: m.tipo, alvo: m.alvo, unidade: m.unidade, lancamentos: [], feita: false, feitaEm: '', criado: agora() }); n++; }
+  salvar(); return n;
 }

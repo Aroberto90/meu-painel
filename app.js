@@ -127,7 +127,7 @@ function desenharRota(pts, alto = 200) {
 }
 
 // ---------- navegação ----------
-const ABAS = { inicio: telaInicio, treino: telaTreino, estudos: telaEstudos, dinheiro: telaDinheiro, agenda: telaAgenda, mais: telaMais, leitura: telaLeitura, noticias: telaNoticias, ajustes: telaAjustes };
+const ABAS = { inicio: telaInicio, treino: telaTreino, estudos: telaEstudos, metas: telaMetas, dinheiro: telaDinheiro, agenda: telaAgenda, mais: telaMais, leitura: telaLeitura, noticias: telaNoticias, ajustes: telaAjustes };
 let aba = 'inicio', sub = {};
 function ir(destino) {
   const [a, s] = String(destino || 'inicio').split('/');
@@ -201,6 +201,7 @@ async function telaInicio() {
       <b>${esc(L.atual.titulo)}</b><div class="barra" style="margin:8px 0 4px"><div style="width:${L.atual.pct || 0}%"></div></div><small>página ${L.atual.pagina}${L.atual.paginas ? ` de ${L.atual.paginas}` : ''}${L.sequencia > 1 ? ` · ${L.sequencia} dias seguidos` : ''}</small></section>` : ''}
     <section class="cartao" id="manchetes"><header><h2>${ic('jornal')} Notícias</h2><button class="mini" data-ir="noticias">ver</button></header><p class="vazio">Carregando…</p></section>
   </div>`;
+  $('#conteudo .grade').children[0].insertAdjacentHTML('afterend', cartaoMetasInicio());
   ligarComuns();
   manchetesInicio();
 }
@@ -209,6 +210,87 @@ function ligarComuns() {
   $$('[data-treinar]').forEach((b) => (b.onclick = () => escolherFicha()));
   $$('[data-correr]').forEach((b) => (b.onclick = () => correrAgora()));
   $$('[data-gasto]').forEach((b) => (b.onclick = () => formGasto()));
+}
+
+// ==================== METAS ====================
+const refMeta = { mes: hoje().slice(0, 7), ano: hoje().slice(0, 4) };
+const nomeRef = (periodo, ref) => { if (periodo === 'ano') return ref; const t = MESES[+ref.slice(5) - 1]; return `${t[0].toUpperCase()}${t.slice(1)} de ${ref.slice(0, 4)}`; };
+const UNIDADES = ['R$', 'km', 'vezes', 'livros', 'páginas', 'horas', 'kg', 'dias'];
+const IDEIAS_META = { mes: ['Guardar dinheiro', 'Correr no mês', 'Treinos de academia', 'Livros lidos', 'Horas de estudo'], ano: ['Juntar para viagem', 'Quilômetros corridos', 'Livros no ano', 'Curso concluído', 'Reserva de emergência'] };
+function cartaoMeta(m) {
+  const p = progressoMeta(m);
+  const ritmo = p.batida ? '<span class="etiqueta verde">batida</span>' : p.encerrada ? '<span class="etiqueta vermelha">não batida</span>' : p.situacao === 'atras' ? '<span class="etiqueta vermelha">atrás do ritmo</span>' : p.situacao === 'nomes' ? '<span class="etiqueta azul">no ritmo</span>' : '<span class="etiqueta">em andamento</span>';
+  const corpo = m.tipo === 'feito'
+    ? `<p class="suave meta-txt">${m.feita ? `Feita em ${dataBR(m.feitaEm)}` : 'Ainda não foi feita'}</p>`
+    : `<div class="barra"><div style="width:${Math.min(100, Math.max(0, p.pct))}%"></div></div>
+       <p class="suave meta-txt"><b>${esc(valorMeta(p.atual, m.unidade))}</b> de ${esc(valorMeta(m.alvo, m.unidade))}${p.batida ? '' : ` · faltam ${esc(valorMeta(p.falta, m.unidade))}`}${p.esperado !== null && !p.batida && !p.encerrada ? `<br>Hoje o ritmo pede ${esc(valorMeta(p.esperado, m.unidade))}` : ''}</p>`;
+  return `<section class="cartao meta-cartao"><header><button type="button" class="meta-titulo" data-meta-ver="${m.id}"><b>${esc(m.titulo)}</b></button>${ritmo}</header>
+    ${corpo}
+    <div class="dupla" style="margin-top:10px">${m.tipo === 'feito'
+    ? `<button type="button" class="mini ${m.feita ? '' : 'primario'}" data-meta-feita="${m.id}">${m.feita ? 'Desmarcar' : `${ic('check')} Marcar como feita`}</button>`
+    : `<button type="button" class="mini primario" data-meta-lancar="${m.id}">${ic('mais')} Lançar</button>`}<button type="button" class="mini" data-meta-ver="${m.id}">Detalhes</button></div></section>`;
+}
+function telaMetas() {
+  const s = sub.metas === 'ano' ? 'ano' : 'mes', ref = refMeta[s], lista = metasDe(s, ref), P = lista.map(progressoMeta), batidas = P.filter((p) => p.batida).length;
+  const anterior = s === 'ano' ? String(+ref - 1) : somaMeses(ref + '-01', -1).slice(0, 7), proxima = s === 'ano' ? String(+ref + 1) : somaMeses(ref + '-01', 1).slice(0, 7), ant = metasDe(s, anterior);
+  const media = lista.length ? P.reduce((t, p) => t + Math.min(100, Math.max(0, p.pct)), 0) / lista.length : 0;
+  $('#conteudo').innerHTML = `<div class="topo"><h1>Metas</h1></div>${segmento(s, [['mes', 'Meta do mês'], ['ano', 'Meta do ano']])}
+    <div class="meta-periodo"><button type="button" class="icone" data-meta-ref="${anterior}" aria-label="Período anterior">${ic('voltar')}</button><b id="metaPeriodo">${nomeRef(s, ref)}</b><button type="button" class="icone meta-prox" data-meta-ref="${proxima}" aria-label="Próximo período">${ic('voltar')}</button></div>
+    <div class="grade">
+      ${lista.length ? `<section class="cartao destaque"><div class="anel">${anel(media / 100, { tam: 96, cor: '#fff', texto: `${Math.round(media)}%`, sub: 'do total', claro: true })}<div><small>${s === 'ano' ? 'Metas do ano' : 'Metas do mês'}</small><div class="grande">${batidas} de ${lista.length}</div><small>${batidas === lista.length ? 'Todas batidas! 🎉' : `batida${batidas === 1 ? '' : 's'}`}</small></div></div></section>` : ''}
+      <div class="c12"><button type="button" class="primario largo" id="novaMeta">${ic('mais')} Nova meta</button></div>
+      ${lista.length ? lista.map(cartaoMeta).join('') : `<section class="cartao"><p class="vazio">Nenhuma meta em ${nomeRef(s, ref).toLowerCase()}. Crie a primeira e vá lançando o que conseguir.</p>
+        ${ant.length ? `<button type="button" class="largo" id="trazerMetas">Trazer ${ant.length} meta${ant.length === 1 ? '' : 's'} de ${nomeRef(s, anterior).toLowerCase()}</button>` : ''}
+        <div class="meta-ideias">${IDEIAS_META[s].map((t) => `<button type="button" class="mini" data-meta-ideia="${esc(t)}">${esc(t)}</button>`).join('')}</div></section>`}
+    </div>`;
+  ligarSegmento();
+  $$('[data-meta-ref]').forEach((b) => (b.onclick = () => { refMeta[s] = b.dataset.metaRef; render(); }));
+  $('#novaMeta').onclick = () => formMeta({ periodo: s, ref });
+  const tr = $('#trazerMetas'); if (tr) tr.onclick = () => { const n = copiarMetas(s, anterior, ref); avisar(`${n} meta${n === 1 ? '' : 's'} trazida${n === 1 ? '' : 's'}`); render(); };
+  $$('[data-meta-ideia]').forEach((b) => (b.onclick = () => formMeta({ periodo: s, ref, titulo: b.dataset.metaIdeia })));
+  $$('[data-meta-lancar]').forEach((b) => (b.onclick = () => formLancarMeta(metaPorId(b.dataset.metaLancar))));
+  $$('[data-meta-ver]').forEach((b) => (b.onclick = () => verMeta(metaPorId(b.dataset.metaVer))));
+  $$('[data-meta-feita]').forEach((b) => (b.onclick = () => { const m = marcarMetaFeita(b.dataset.metaFeita); avisar(m.feita ? 'Meta feita! 🎉' : 'Meta desmarcada'); render(); }));
+}
+function formMeta(m = {}) {
+  const novo = !m.id, unidade = m.unidade || 'R$', outra = !UNIDADES.includes(unidade);
+  const f = modal(`<h2>${novo ? `Nova meta ${m.periodo === 'ano' ? 'do ano' : 'do mês'}` : 'Editar meta'}</h2>
+    <label>O que você quer alcançar?<input name="titulo" required maxlength="80" value="${esc(m.titulo || '')}" placeholder="Ex.: guardar para a viagem"></label>
+    <label>Como acompanhar<select name="tipo" id="metaTipo"><option value="valor" ${m.tipo !== 'feito' ? 'selected' : ''}>Por um número, lançando aos poucos</option><option value="feito" ${m.tipo === 'feito' ? 'selected' : ''}>Só marcar quando fizer</option></select></label>
+    <div class="dupla" id="metaNumero"><label>Quanto<input name="alvo" inputmode="decimal" value="${m.alvo ? String(m.alvo).replace('.', ',') : ''}" placeholder="1.000"></label>
+    <label>Medida<select name="unidade" id="metaUnidade">${UNIDADES.map((u) => `<option ${u === unidade ? 'selected' : ''}>${u}</option>`).join('')}<option value="outra" ${outra ? 'selected' : ''}>Outra</option></select></label></div>
+    <label id="metaOutra" ${outra ? '' : 'hidden'}>Qual medida?<input name="outra" maxlength="20" value="${outra ? esc(unidade) : ''}" placeholder="Ex.: aulas"></label>
+    ${novo ? '' : `<button type="button" id="metaApagar" class="mini" style="color:var(--vermelho)">${ic('lixo')} Apagar meta</button>`}`,
+  (v) => {
+    const unid = v.unidade === 'outra' ? String(v.outra || '').trim() : v.unidade;
+    salvarMeta({ id: m.id, periodo: m.periodo, ref: m.ref, titulo: v.titulo, tipo: v.tipo, alvo: v.alvo, unidade: unid });
+    avisar(novo ? 'Meta criada' : 'Meta atualizada');
+  });
+  const tipo = $('#metaTipo', f), ver = () => { $('#metaNumero', f).hidden = tipo.value === 'feito'; $('#metaOutra', f).hidden = tipo.value === 'feito' || $('#metaUnidade', f).value !== 'outra'; };
+  tipo.onchange = ver; $('#metaUnidade', f).onchange = ver; ver();
+  const ap = $('#metaApagar', f); if (ap) ap.onclick = () => { if (!confirm(`Apagar a meta "${m.titulo}" e tudo que foi lançado nela?`)) return; apagarMeta(m.id); $('#modal').close(); avisar('Meta apagada'); render(); };
+}
+function formLancarMeta(m) {
+  const p = progressoMeta(m);
+  modal(`<h2>${esc(m.titulo)}</h2><p class="suave" style="margin:0">Até agora: ${esc(valorMeta(p.atual, m.unidade))} de ${esc(valorMeta(m.alvo, m.unidade))}</p>
+    <div class="dupla"><label>Quanto (${esc(m.unidade)})<input name="valor" required inputmode="decimal" autofocus placeholder="0"></label><label>Data<input type="date" name="data" value="${hoje()}"></label></div>
+    <label>Observação (opcional)<input name="obs" maxlength="80" placeholder="Ex.: sobra do salário"></label>
+    <small class="suave">Para corrigir para menos, use um valor negativo ou apague o lançamento em Detalhes.</small>`,
+  (v) => { const r = lancarMeta(m.id, v); avisar(r.bateuAgora ? 'Meta batida! 🎉' : 'Lançado'); }, { textoOk: 'Lançar' });
+}
+function verMeta(m) {
+  const p = progressoMeta(m), lanc = [...(m.lancamentos || [])].sort((a, b) => b.data.localeCompare(a.data));
+  const f = modal(`<h2>${esc(m.titulo)}</h2><p class="suave" style="margin:0">${nomeRef(m.periodo, m.ref)}${m.tipo === 'feito' ? '' : ` · ${esc(valorMeta(p.atual, m.unidade))} de ${esc(valorMeta(m.alvo, m.unidade))}`}</p>
+    ${m.tipo === 'feito' ? '' : `<div class="meta-lancs">${lanc.length ? lanc.map((l) => `<div class="meta-lanc"><span><b>${esc(valorMeta(l.valor, m.unidade))}</b><small class="suave">${dataBR(l.data)}${l.obs ? ' · ' + esc(l.obs) : ''}</small></span><button type="button" class="icone" data-lanc-tirar="${l.id}" aria-label="Apagar lançamento">${ic('lixo')}</button></div>`).join('') : '<p class="vazio">Nada lançado ainda.</p>'}</div>`}
+    <button type="button" id="metaEditar" class="largo">${ic('lapis')} Editar meta</button><button value="cancelar" formnovalidate class="largo">Fechar</button>`, () => {}, { semBotoes: true });
+  $('#metaEditar', f).onclick = () => { $('#modal').close(); setTimeout(() => formMeta(m), 30); };
+  f.querySelectorAll('[data-lanc-tirar]').forEach((b) => (b.onclick = () => { tirarLancamentoMeta(m.id, b.dataset.lancTirar); avisar('Lançamento apagado'); $('#modal').close(); render(); setTimeout(() => verMeta(metaPorId(m.id)), 30); }));
+}
+function cartaoMetasInicio() {
+  const mes = metasDe('mes', hoje().slice(0, 7)), ano = metasDe('ano', hoje().slice(0, 4));
+  if (!mes.length && !ano.length) return `<section class="cartao c6"><header><h2>${ic('alvo')} Metas</h2></header><p class="suave" style="margin:0 0 10px">Defina suas metas do mês e do ano.</p><button type="button" class="mini" data-ir="metas/mes">Criar metas</button></section>`;
+  const linha = (nome, l, dest) => { const P = l.map(progressoMeta), b = P.filter((p) => p.batida).length, med = l.length ? P.reduce((t, p) => t + Math.min(100, Math.max(0, p.pct)), 0) / l.length : 0; return `<button type="button" class="meta-resumo" data-ir="${dest}"><span><b>${nome}</b><small class="suave">${l.length ? `${b} de ${l.length} batida${l.length === 1 ? '' : 's'}` : 'nenhuma ainda'}</small></span><div class="barra"><div style="width:${Math.round(med)}%"></div></div></button>`; };
+  return `<section class="cartao c6"><header><h2>${ic('alvo')} Metas</h2></header>${linha('Do mês', mes, 'metas/mes')}${linha('Do ano', ano, 'metas/ano')}</section>`;
 }
 
 // ==================== TREINO ====================
