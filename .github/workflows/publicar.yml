@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
       - name: Montar o site
         run: |
           mkdir site
@@ -34,8 +34,15 @@ jobs:
       - name: Buscar notícias
         run: node ferramentas/noticias.js site/noticias.json
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: site
+      # o GitHub às vezes ainda não enxerga o pacote recém-enviado: espera e tenta de novo
       - id: deploy
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - if: steps.deploy.outcome == 'failure'
+        run: sleep 30
+      - id: deploy2
+        if: steps.deploy.outcome == 'failure'
         uses: actions/deploy-pages@v4
